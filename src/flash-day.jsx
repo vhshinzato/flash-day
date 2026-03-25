@@ -472,7 +472,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
   );
 }
 
-function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, flashLink, event }) {
+function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, flashLink, event, isSubmitting }) {
   if (!bookModal) return null;
   const maxDob = new Date(new Date().setFullYear(new Date().getFullYear()-18)).toISOString().split("T")[0];
   return (
@@ -555,7 +555,7 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
           </div>
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={onClose} style={{ ...btnS, flex:1 }}>Cancelar</button>
-            <button onClick={onBook} style={{ ...btnP, flex:2 }}>Agendar</button>
+            <button onClick={onBook} disabled={isSubmitting} style={{ ...btnP, flex:2, opacity:isSubmitting?0.6:1, cursor:isSubmitting?"not-allowed":"pointer" }}>{isSubmitting?"Salvando...":"Agendar"}</button>
           </div>
         </>
       ) : (
@@ -919,6 +919,7 @@ export default function FlashDay() {
   const [slots, setSlots]         = useState(INIT_SLOTS);
   const [bookings, setBookings]   = useState(INIT_BOOKINGS);
   const [loading, setLoading]     = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookModal, setBookModal] = useState(null);
   const [bookForm, setBookForm]   = useState({ name:"", phone:"", dob:"", bodyPart:"", caixas:0, notes:"" });
   const [bookStep, setBookStep]   = useState("form");
@@ -999,8 +1000,11 @@ export default function FlashDay() {
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"bookings" }, payload=>{
         const b = payload.new;
         setBookings(p=>{
+          // evita duplicidade: ignora se ja existe com mesmo id real
           if (p.find(x=>x.id===b.id)) return p;
-          return [...p, { id:b.id, slotId:b.slot_id, name:b.name, phone:b.phone, dob:b.dob||"", bodyPart:b.body_part||"", caixas:b.caixas||0, notes:b.notes||"", status:b.status, sessao:null }];
+          // remove qualquer entrada temp com mesmo nome+slot (criada localmente antes)
+          const filtered = p.filter(x=>!(x.id.startsWith("temp-")&&x.slotId===b.slot_id&&x.name===b.name));
+          return [...filtered, { id:b.id, slotId:b.slot_id, name:b.name, phone:b.phone, dob:b.dob||"", bodyPart:b.body_part||"", caixas:b.caixas||0, notes:b.notes||"", status:b.status, sessao:null }];
         });
       })
       .on("postgres_changes", { event:"UPDATE", schema:"public", table:"bookings" }, payload=>{
@@ -1061,29 +1065,32 @@ export default function FlashDay() {
   };
 
   const handleBook = async ()=>{
+    if (isSubmitting) return; // bloqueia duplo clique
     if (!bookForm.name.trim())    { showToast("Nome e obrigatorio","err"); return; }
     if (!bookForm.phone.trim())   { showToast("Telefone e obrigatorio","err"); return; }
     if (!bookForm.dob)            { showToast("Data de nascimento e obrigatoria","err"); return; }
     if (calcAge(bookForm.dob)<18) { showToast("E necessario ter 18 anos ou mais","err"); return; }
     const n=slotStats[bookModal.slotId]?.count??0;
     if (n>=event.capacity)        { showToast("Horario ja esta cheio","err"); return; }
-    const { error } = await supabase.from("bookings").insert([{
-      slot_id: bookModal.slotId,
-      name: bookForm.name,
-      phone: bookForm.phone,
-      dob: bookForm.dob || null,
-      body_part: bookForm.bodyPart || null,
-      caixas: bookForm.caixas || 0,
-      notes: bookForm.notes || null,
-      status: "pending",
-    }]);
-    if (error) { showToast("Erro ao salvar agendamento","err"); console.error(error); return; }
-    // Realtime vai atualizar a lista automaticamente, mas adicionamos localmente para UX imediata
-    const tempId = "temp-" + Date.now();
-    const newBooking = { id:tempId, slotId:bookModal.slotId, name:bookForm.name, phone:bookForm.phone, dob:bookForm.dob||"", bodyPart:bookForm.bodyPart||"", caixas:bookForm.caixas||0, notes:bookForm.notes||"", status:"pending", sessao:null };
-    setBookings(p=>[...p,newBooking]);
-    sendNotificationEmail(bookForm, bookModal.time);
-    setBookStep("payment");
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from("bookings").insert([{
+        slot_id: bookModal.slotId,
+        name: bookForm.name,
+        phone: bookForm.phone,
+        dob: bookForm.dob || null,
+        body_part: bookForm.bodyPart || null,
+        caixas: bookForm.caixas || 0,
+        notes: bookForm.notes || null,
+        status: "pending",
+      }]);
+      if (error) { showToast("Erro ao salvar agendamento","err"); console.error(error); return; }
+      // NAO adicionar localmente — o Realtime ja vai inserir via postgres_changes INSERT
+      sendNotificationEmail(bookForm, bookModal.time);
+      setBookStep("payment");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const closeBookModal = ()=>{ setBookModal(null); setBookStep("form"); setBookForm({name:"",phone:"",dob:"",bodyPart:"",caixas:0,notes:""}); };
@@ -1303,7 +1310,7 @@ export default function FlashDay() {
         </div>
       )}
 
-      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} flashLink={flashLink} event={event} />
+      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} flashLink={flashLink} event={event} isSubmitting={isSubmitting} />
       <EditModal editModal={editModal} setEditModal={setEditModal} slots={slots} onSave={handleSaveEdit} onRequestCancel={()=>setConfirmId(editModal.id)} />
 
       {donationModal && (
