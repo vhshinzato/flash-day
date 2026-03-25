@@ -396,8 +396,8 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
             {preview.map(s=><span key={s.id} style={{ background:T.surface2, border:`1px solid ${T.border2}`, borderRadius:6, padding:"3px 9px", fontSize:12, color:T.textMuted }}>{s.time}</span>)}
           </div>
         </div>
-        <div style={{ background:"#1e1400", border:`1px solid ${T.amberDim}`, borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:12, color:T.amber }}>
-          Aviso: Salvar ira regenerar os horarios e remover os agendamentos existentes.
+        <div style={{ background:"#0d1a0d", border:`1px solid ${T.greenDim}`, borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:12, color:T.green }}>
+          Novos horarios serao adicionados. Agendamentos, doacoes e faturamento existentes sao preservados.
         </div>
         <button onClick={onSaveEvent} style={{ ...btnP, width:"100%" }}>Salvar Configuracoes</button>
         <div style={{ display:"flex", gap:10, marginTop:12 }}>
@@ -1233,11 +1233,19 @@ export default function FlashDay() {
         interval_min:ev.interval, capacity:ev.capacity,
       });
     }
-    // Delete old slots and insert new ones
-    await supabase.from("bookings").delete().neq("id","00000000-0000-0000-0000-000000000000"); // clear bookings
-    await supabase.from("slots").delete().neq("id","none");
-    await supabase.from("slots").insert(newSlots.map(s=>({ id:s.id, time:s.time, blocked:false })));
-    setSlots(newSlots); setEvent(ev); setBookings([]);
+    // Upsert slots — insere novos, mantém os existentes com seus agendamentos
+    const { data:existingSlots } = await supabase.from("slots").select("id");
+    const existingIds = (existingSlots||[]).map(s=>s.id);
+    const newOnly = newSlots.filter(s=>!existingIds.includes(s.id));
+    if (newOnly.length > 0) {
+      await supabase.from("slots").insert(newOnly.map(s=>({ id:s.id, time:s.time, blocked:false })));
+    }
+    // Atualiza estado local — mantém agendamentos existentes
+    const mergedSlots = newSlots.map(s=>{
+      const existing = slots.find(e=>e.id===s.id);
+      return existing || s;
+    });
+    setSlots(mergedSlots); setEvent(ev);
     showToast("Configuracoes salvas!");
   };
 
