@@ -241,7 +241,7 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook }) {
   );
 }
 
-function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, onEdit, onConfirm, onConcluir, onReminder }) {
+function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, onEdit, onConfirm, onConcluir, onReminder, onDelete }) {
   return (
     <div style={{ maxWidth:820, margin:"0 auto", padding:"24px 16px" }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
@@ -312,6 +312,11 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
                   Concluir
                 </button>
               </>)}
+              {b.status==="cancelled" && (
+                <button onClick={e=>{ e.stopPropagation(); onDelete(b.id); }} style={{ background:"#200c0c", color:T.red, border:`1px solid ${T.redDim}`, borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
+                  Excluir
+                </button>
+              )}
               <span onClick={()=>onEdit(b)} style={{ color:T.textDim, fontSize:18, cursor:"pointer", padding:"0 4px" }}>&#8250;</span>
             </div>
           </div>
@@ -1170,7 +1175,7 @@ export default function FlashDay() {
 
   const handleOpenSession = (booking)=>{
     setSessionModal(booking);
-    setSessionForm({ valorCobrado:"", duracao:"", agulhas:"", tintas:"", obs:"" });
+    setSessionForm({ valorCobrado:"", duracao:"", agulhas:"", tintas:"", caixasRecebidas:0, obs:"" });
   };
 
   const handleSaveSession = async ()=>{
@@ -1198,6 +1203,12 @@ export default function FlashDay() {
     setBookings(p=>p.map(b=>b.id===editModal.id?editModal:b));
     setEditModal(null); showToast("Agendamento atualizado");
   };
+  const handleDeleteBooking = async id=>{
+    await supabase.from("bookings").delete().eq("id",id);
+    setBookings(p=>p.filter(b=>b.id!==id));
+    showToast("Agendamento excluido.");
+  };
+
   const handleCancelConfirm = async id=>{
     await supabase.from("bookings").update({status:"cancelled"}).eq("id",id);
     setBookings(p=>p.map(b=>b.id===id?{...b,status:"cancelled"}:b));
@@ -1310,7 +1321,7 @@ export default function FlashDay() {
             </div>
             <button onClick={()=>{setAdminAuth(false);setView("agenda");}} style={{ background:"transparent", border:"none", color:T.textDim, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:"0 4px", flexShrink:0 }}>Sair</button>
           </div>
-          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} />}
+          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} />}
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
