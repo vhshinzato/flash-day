@@ -979,10 +979,8 @@ export default function FlashDay() {
       // Load slots
       const { data: slotRows } = await supabase.from("slots").select("*");
       if (slotRows && slotRows.length > 0) {
-        const sorted = [...slotRows].sort((a,b)=>{
-          const toMin = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
-          return toMin(a.time) - toMin(b.time);
-        });
+        const toMin = t => { const [h,m]=(t||"0:0").split(":").map(Number); return h*60+m; };
+        const sorted = [...slotRows].sort((a,b)=> toMin(a.time) - toMin(b.time));
         setSlots(sorted.map(s=>({ id:s.id, time:s.time, blocked:s.blocked })));
       }
       // Load bookings
@@ -1260,6 +1258,8 @@ export default function FlashDay() {
       const existing = slots.find(e=>e.id===s.id);
       return existing || s;
     });
+    const toMin2 = t => { const [h,m]=(t||"0:0").split(":").map(Number); return h*60+m; };
+    mergedSlots.sort((a,b)=>toMin2(a.time)-toMin2(b.time));
     setSlots(mergedSlots); setEvent(ev);
     showToast("Configuracoes salvas!");
   };
