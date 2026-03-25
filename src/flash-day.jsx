@@ -1071,8 +1071,8 @@ export default function FlashDay() {
   };
 
   const sendNotificationEmail = (bookingData, slotTime) => {
-    if (!window.emailjs || EMAILJS_SERVICE_ID==="SEU_SERVICE_ID") return;
-    window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    if (EMAILJS_SERVICE_ID==="SEU_SERVICE_ID") return;
+    const params = {
       to_email:     NOTIF_EMAIL,
       to_name:      "Ink Station",
       client_name:  bookingData.name,
@@ -1082,7 +1082,14 @@ export default function FlashDay() {
       event_name:   event.name,
       event_date:   event.date,
       notes:        bookingData.notes || "Nenhuma",
-    }).catch(err => console.warn("EmailJS error:", err));
+    };
+    const doSend = () => {
+      if (!window.emailjs) { setTimeout(doSend, 300); return; }
+      window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params)
+        .then(()=>console.log("Email enviado!"))
+        .catch(err=>console.warn("EmailJS error:", err));
+    };
+    doSend();
   };
 
   const handleBook = async ()=>{
