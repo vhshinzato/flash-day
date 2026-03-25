@@ -1067,7 +1067,7 @@ export default function FlashDay() {
     if (calcAge(bookForm.dob)<18) { showToast("E necessario ter 18 anos ou mais","err"); return; }
     const n=slotStats[bookModal.slotId]?.count??0;
     if (n>=event.capacity)        { showToast("Horario ja esta cheio","err"); return; }
-    const { data, error } = await supabase.from("bookings").insert({
+    const { error } = await supabase.from("bookings").insert([{
       slot_id: bookModal.slotId,
       name: bookForm.name,
       phone: bookForm.phone,
@@ -1076,9 +1076,11 @@ export default function FlashDay() {
       caixas: bookForm.caixas || 0,
       notes: bookForm.notes || null,
       status: "pending",
-    }).select().single();
-    if (error) { showToast("Erro ao salvar agendamento","err"); return; }
-    const newBooking = { id:data.id, slotId:data.slot_id, name:data.name, phone:data.phone, dob:data.dob||"", bodyPart:data.body_part||"", caixas:data.caixas||0, notes:data.notes||"", status:data.status, sessao:null };
+    }]);
+    if (error) { showToast("Erro ao salvar agendamento","err"); console.error(error); return; }
+    // Realtime vai atualizar a lista automaticamente, mas adicionamos localmente para UX imediata
+    const tempId = "temp-" + Date.now();
+    const newBooking = { id:tempId, slotId:bookModal.slotId, name:bookForm.name, phone:bookForm.phone, dob:bookForm.dob||"", bodyPart:bookForm.bodyPart||"", caixas:bookForm.caixas||0, notes:bookForm.notes||"", status:"pending", sessao:null };
     setBookings(p=>[...p,newBooking]);
     sendNotificationEmail(bookForm, bookModal.time);
     setBookStep("payment");
@@ -1150,10 +1152,10 @@ export default function FlashDay() {
 
   const handleSaveDonation = async ()=>{
     if (!donationForm.nome.trim()) return;
-    const { data:don } = await supabase.from("donations").insert({
+    const { error } = await supabase.from("donations").insert([{
       tipo:"doacao", nome:donationForm.nome, caixas:Number(donationForm.caixas)||1, obs:donationForm.obs||null
-    }).select().single();
-    if (don) setDonations(p=>[...p,{ id:don.id, tipo:don.tipo, nome:don.nome, caixas:don.caixas, obs:don.obs||"", data:don.created_at }]);
+    }]);
+    if (!error) setDonations(p=>[...p,{ id:"d"+Date.now(), tipo:"doacao", nome:donationForm.nome, caixas:Number(donationForm.caixas)||1, obs:donationForm.obs||"", data:new Date().toISOString() }]);
     setDonationModal(false);
     setDonationForm({ nome:"", caixas:1, obs:"" });
     showToast("Doacao registrada!");
@@ -1170,11 +1172,11 @@ export default function FlashDay() {
     await supabase.from("bookings").update({ status:"done", sessao:sessaoData }).eq("id",sessionModal.id);
     setBookings(p=>p.map(b=>b.id===sessionModal.id ? { ...b, status:"done", sessao:sessaoData } : b));
     if (caixasCliente > 0) {
-      const { data:don } = await supabase.from("donations").insert({
+      const { error:donErr } = await supabase.from("donations").insert([{
         tipo:"cliente", nome:sessionModal.name, caixas:caixasCliente,
         obs:"Caixas recebidas na sessao", booking_id:sessionModal.id
-      }).select().single();
-      if (don) setDonations(p=>[...p,{ id:don.id, tipo:don.tipo, nome:don.nome, caixas:don.caixas, obs:don.obs||"", data:don.created_at, bookingId:don.booking_id }]);
+      }]);
+      if (!donErr) setDonations(p=>[...p,{ id:"d"+Date.now(), tipo:"cliente", nome:sessionModal.name, caixas:caixasCliente, obs:"Caixas recebidas na sessao", data:new Date().toISOString(), bookingId:sessionModal.id }]);
     }
     setSessionModal(null);
     showToast("Sessao concluida!");
