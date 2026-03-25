@@ -3,9 +3,9 @@ import { supabase } from "./supabase.js";
 
 // FLASH_LINK agora gerenciado via configuracoes (fd_flash_link no localStorage)
 const SINAL_VALOR = 50;
-const EMAILJS_SERVICE_ID  = "SEU_SERVICE_ID";
-const EMAILJS_TEMPLATE_ID = "SEU_TEMPLATE_ID";
-const EMAILJS_PUBLIC_KEY  = "SUA_PUBLIC_KEY";
+const EMAILJS_SERVICE_ID  = "service_cbqrtib";
+const EMAILJS_TEMPLATE_ID = "template_b6nlu5t";
+const EMAILJS_PUBLIC_KEY  = "6TsrRDqsj936zntur";
 const NOTIF_EMAIL = "inkstation925@gmail.com";
 const STATUS_LABELS = { pending:"Aguardando sinal", confirmed:"Confirmado", done:"Realizado", cancelled:"Cancelado" };
 
