@@ -549,8 +549,8 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
             )}
           </div>
           <div style={{ marginBottom:20 }}>
-            <label style={lbl}>Observacoes</label>
-            <textarea placeholder="Ideia, referencia, estilo..." value={bookForm.notes} onChange={e=>setBookForm(p=>({...p,notes:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
+            <label style={lbl}>Numero do arquivo do design</label>
+            <textarea placeholder="Ex: arquivo 03, foto 07... consulte o catalogo de designs acima!" value={bookForm.notes} onChange={e=>setBookForm(p=>({...p,notes:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
           </div>
           <div style={{ background:"#0d1a0d", border:`1px solid #22c55e28`, borderRadius:10, padding:"14px 16px", marginBottom:20 }}>
             <div style={{ fontSize:12, fontWeight:600, color:T.green, marginBottom:6 }}>Confirmacao por sinal</div>
@@ -920,6 +920,7 @@ export default function FlashDay() {
   const [loginPwd, setLoginPwd]   = useState("");
   const [loginErr, setLoginErr]   = useState(false);
   const [storedPwd, setStoredPwd] = useState(()=>localStorage.getItem("fd_admin_pwd")||"inkstation2026");
+  const [pwdLoaded, setPwdLoaded]   = useState(false);
   const [event, setEvent]         = useState(INIT_EVENT);
   const [slots, setSlots]         = useState(INIT_SLOTS);
   const [bookings, setBookings]   = useState(INIT_BOOKINGS);
@@ -975,6 +976,11 @@ export default function FlashDay() {
         setSettingsForm(ev);
         if (cfg.pix_key) setPixConfig({ key:cfg.pix_key, keyType:cfg.pix_key_type||"cpf", holderName:cfg.pix_holder_name||"", bank:cfg.pix_bank||"" });
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
+        if (cfg.admin_password) {
+          setStoredPwd(cfg.admin_password);
+          localStorage.setItem("fd_admin_pwd", cfg.admin_password);
+        }
+        setPwdLoaded(true);
       }
       // Load slots
       const { data: slotRows } = await supabase.from("slots").select("*");
@@ -1054,7 +1060,15 @@ export default function FlashDay() {
   }),[bookings,filterSt,search]);
 
   const handleLogin = ()=>{ if(loginPwd===storedPwd){setAdminAuth(true);setLoginErr(false);setLoginPwd("");}else{setLoginErr(true);setLoginPwd("");} };
-  const handleChangePwd = newPwd=>{ localStorage.setItem("fd_admin_pwd",newPwd); setStoredPwd(newPwd); showToast("Senha atualizada!"); };
+  const handleChangePwd = async newPwd=>{
+    localStorage.setItem("fd_admin_pwd", newPwd);
+    setStoredPwd(newPwd);
+    const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
+    if (cfgRows && cfgRows.length > 0) {
+      await supabase.from("event_config").update({ admin_password: newPwd }).eq("id", cfgRows[0].id);
+    }
+    showToast("Senha atualizada em todos os dispositivos!");
+  };
 
   const sendNotificationEmail = (bookingData, slotTime) => {
     if (!window.emailjs || EMAILJS_SERVICE_ID==="SEU_SERVICE_ID") return;
