@@ -313,7 +313,7 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
                 </button>
               </>)}
               {b.status==="cancelled" && (
-                <button onClick={e=>{ e.stopPropagation(); onDelete(b.id); }} style={{ background:"#200c0c", color:T.red, border:`1px solid ${T.redDim}`, borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
+                <button onClick={e=>{ e.stopPropagation(); if(window.confirm("Excluir agendamento de " + b.name + "?")) onDelete(b.id); }} style={{ background:"#200c0c", color:T.red, border:`1px solid ${T.redDim}`, borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
                   Excluir
                 </button>
               )}
@@ -977,9 +977,13 @@ export default function FlashDay() {
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
       }
       // Load slots
-      const { data: slotRows } = await supabase.from("slots").select("*").order("id");
+      const { data: slotRows } = await supabase.from("slots").select("*");
       if (slotRows && slotRows.length > 0) {
-        setSlots(slotRows.map(s=>({ id:s.id, time:s.time, blocked:s.blocked })));
+        const sorted = [...slotRows].sort((a,b)=>{
+          const toMin = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+          return toMin(a.time) - toMin(b.time);
+        });
+        setSlots(sorted.map(s=>({ id:s.id, time:s.time, blocked:s.blocked })));
       }
       // Load bookings
       const { data: bookRows } = await supabase.from("bookings").select("*").order("created_at");
