@@ -56,6 +56,41 @@ function calcAge(dob) {
   if (mo < 0 || (mo===0 && today.getDate() < birth.getDate())) age--;
   return age;
 }
+function crc16(str) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) { crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1; crc &= 0xFFFF; }
+  }
+  return crc;
+}
+function genPixPayload(pixConfig, valor) {
+  if (!pixConfig?.key) return null;
+  const tlv = (id, v) => id + String(v.length).padStart(2,"0") + v;
+  const merchant = tlv("26", tlv("00","BR.GOV.BCB.PIX") + tlv("01", pixConfig.key));
+  const name = (pixConfig.holderName || "Ink Station").slice(0,25).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  const additional = tlv("62", tlv("05","***"));
+  const payload = tlv("00","01") + merchant + tlv("52","0000") + tlv("53","986") +
+    tlv("54", Number(valor).toFixed(2)) + tlv("58","BR") + tlv("59", name) +
+    tlv("60","SAO BERNARDO") + additional + "6304";
+  return payload + crc16(payload).toString(16).toUpperCase().padStart(4,"0");
+}
+function genCalendarUrl(event, time, name, bodyPart) {
+  if (!event.date) return null;
+  const [y,m,d] = event.date.split("-");
+  const [hh,mm] = time.split(":");
+  const pad = n => String(n).padStart(2,"0");
+  const start = `${y}${pad(m)}${pad(d)}T${pad(hh)}${pad(mm)}00`;
+  const endH = String(parseInt(hh)+(parseInt(mm)+60>=60?1:0)).padStart(2,"0");
+  const endM = String((parseInt(mm)+60)%60).padStart(2,"0");
+  const end = `${y}${pad(m)}${pad(d)}T${endH}${endM}00`;
+  const details = encodeURIComponent(["Nome: "+name, bodyPart?"Tatuagem: "+bodyPart:"", "Ink Station Flash Day"].filter(Boolean).join("\n"));
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+    "&text=" + encodeURIComponent(event.name) +
+    "&dates=" + start + "/" + end +
+    "&location=" + encodeURIComponent(event.location) +
+    "&details=" + details;
+}
 
 const INIT_EVENT = { name:"Flash Day Ink Station", date:"2026-04-04", location:"Sao Bernardo do Campo, SP", startTime:"10:00", endTime:"20:00", interval:30, capacity:3 };
 const INIT_SLOTS = genSlots("10:00","20:00",30);
@@ -575,54 +610,45 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
           </div>
           <div style={{ background:T.surface3, border:`1px solid ${T.border2}`, borderRadius:12, padding:"18px 16px", marginBottom:20 }}>
             <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>Pagamento do sinal</div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
               <span style={{ fontSize:13, color:T.textMuted }}>Valor</span>
               <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:T.green, letterSpacing:"0.04em" }}>R$ {SINAL_VALOR},00</span>
             </div>
-            {pixConfig && pixConfig.key ? (
-              <div style={{ background:T.surface2, borderRadius:8, padding:"12px 14px" }}>
-                <div style={{ fontSize:11, color:T.textDim, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.07em" }}>Chave Pix ({pixConfig.keyType})</div>
-                <div style={{ fontSize:16, color:T.text, fontWeight:700, letterSpacing:"0.02em", marginBottom:6, wordBreak:"break-all" }}>{pixConfig.key}</div>
-                {pixConfig.holderName && <div style={{ fontSize:12, color:T.textMuted }}>Favorecido: <span style={{ color:T.text, fontWeight:500 }}>{pixConfig.holderName}</span></div>}
-                {pixConfig.bank && <div style={{ fontSize:12, color:T.textMuted }}>Banco: <span style={{ color:T.text, fontWeight:500 }}>{pixConfig.bank}</span></div>}
-              </div>
-            ) : (
+            {pixConfig && pixConfig.key ? (() => {
+              const pixPayload = genPixPayload(pixConfig, SINAL_VALOR);
+              return (
+                <>
+                  {pixPayload && (
+                    <div style={{ textAlign:"center", marginBottom:16 }}>
+                      <div style={{ background:"#fff", borderRadius:10, padding:14, display:"inline-block" }}>
+                        <QRCodeCanvas text={pixPayload} size={180} />
+                      </div>
+                      <div style={{ fontSize:11, color:T.textMuted, marginTop:8 }}>Abra o app do banco e escaneie o QR code Pix</div>
+                    </div>
+                  )}
+                  <div style={{ background:T.surface2, borderRadius:8, padding:"12px 14px" }}>
+                    <div style={{ fontSize:11, color:T.textDim, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.07em" }}>Ou copie a chave Pix ({pixConfig.keyType})</div>
+                    <div style={{ fontSize:15, color:T.text, fontWeight:700, letterSpacing:"0.02em", marginBottom:6, wordBreak:"break-all" }}>{pixConfig.key}</div>
+                    {pixConfig.holderName && <div style={{ fontSize:12, color:T.textMuted }}>Favorecido: <span style={{ color:T.text, fontWeight:500 }}>{pixConfig.holderName}</span></div>}
+                    {pixConfig.bank && <div style={{ fontSize:12, color:T.textMuted, marginTop:2 }}>Banco: <span style={{ color:T.text, fontWeight:500 }}>{pixConfig.bank}</span></div>}
+                  </div>
+                </>
+              );
+            })() : (
               <div style={{ background:T.surface2, borderRadius:8, padding:"12px 14px" }}>
                 <div style={{ fontSize:14, color:T.text, fontWeight:500 }}>Entre em contato pelo WhatsApp para receber a chave Pix e finalizar a confirmacao.</div>
               </div>
             )}
           </div>
-          <div style={{ background:"#1e1400", border:`1px solid ${T.amberDim}`, borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:12, color:T.amber, lineHeight:1.6 }}>
+          <div style={{ background:"#1e1400", border:`1px solid ${T.amberDim}`, borderRadius:8, padding:"10px 14px", marginBottom:16, fontSize:12, color:T.amber, lineHeight:1.6 }}>
             O agendamento ficara como Aguardando sinal ate a confirmacao do pagamento pela equipe.
           </div>
-          <div style={{ background:T.surface3, border:`1px solid ${T.border}`, borderRadius:12, padding:"18px 16px", marginBottom:20, textAlign:"center" }}>
-            <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>Salve os detalhes do seu agendamento</div>
-            <div style={{ background:"#fff", borderRadius:10, padding:16, display:"inline-block", marginBottom:12 }}>
-              <QRCodeCanvas text={(() => {
-                if (!event.date) return event.name;
-                const [y,m,d] = event.date.split("-");
-                const [hh,mm] = bookModal.time.split(":");
-                const pad = n => String(n).padStart(2,"0");
-                const start = `${y}${pad(m)}${pad(d)}T${pad(hh)}${pad(mm)}00`;
-                const endH  = String(parseInt(hh)+(parseInt(mm)+60>=60?1:0)).padStart(2,"0");
-                const endM  = String((parseInt(mm)+60)%60).padStart(2,"0");
-                const end   = `${y}${pad(m)}${pad(d)}T${endH}${endM}00`;
-                const desc  = encodeURIComponent([
-                  "Nome: " + bookForm.name,
-                  bookForm.bodyPart ? "Tatuagem: " + bookForm.bodyPart : "",
-                  "Ink Station Flash Day",
-                ].filter(Boolean).join("\n"));
-                return "https://calendar.google.com/calendar/render?action=TEMPLATE" +
-                  "&text=" + encodeURIComponent(event.name) +
-                  "&dates=" + start + "/" + end +
-                  "&location=" + encodeURIComponent(event.location) +
-                  "&details=" + desc;
-              })()} size={160} />
-            </div>
-            <div style={{ fontSize:11, color:T.textMuted, lineHeight:1.5 }}>
-              Escaneie para adicionar o evento na sua agenda
-            </div>
-          </div>
+          {genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart) && (
+            <a href={genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart)} target="_blank" rel="noopener noreferrer"
+              style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:T.surface3, border:`1px solid ${T.border2}`, borderRadius:8, padding:"11px 16px", color:T.textMuted, fontSize:13, textDecoration:"none", marginBottom:16 }}>
+              📅 Adicionar na agenda do Google Calendar
+            </a>
+          )}
           <button onClick={onClose} style={{ ...btnP, width:"100%" }}>Entendido, vou pagar o sinal</button>
         </>
       )}
