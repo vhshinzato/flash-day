@@ -168,7 +168,7 @@ function useCountdown(targetDate) {
   return cd;
 }
 
-function AgendaView({ event, slots, slotStats, getStatus, onBook }) {
+function AgendaView({ event, slots, slotStats, getStatus, onBook, flashLink }) {
   const totalActive = Object.values(slotStats).reduce((a,s)=>a+s.count,0);
   const freeSlots   = slots.filter(s=>!s.blocked).reduce((a,s)=>a+Math.max(0,event.capacity-(slotStats[s.id]?.count??0)),0);
   const weekday     = event.date ? new Date(event.date+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long"}) : "";
@@ -210,6 +210,16 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook }) {
           </div>
         </div>
       </div>
+      {flashLink && (
+        <div style={{ maxWidth:580, margin:"0 auto", padding:"16px 14px 0" }}>
+          <a href={flashLink} target="_blank" rel="noopener noreferrer"
+            style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:T.accentDim, border:`1px solid ${T.accent}40`, borderRadius:10, padding:"13px 20px", color:T.accent, fontSize:14, fontWeight:600, textDecoration:"none", letterSpacing:"0.03em" }}>
+            <span style={{ fontSize:18 }}>🖼</span>
+            Ver catálogo de designs Flash Day
+            <span style={{ fontSize:12, opacity:0.7 }}>↗</span>
+          </a>
+        </div>
+      )}
       <div style={{ display:"flex", justifyContent:"center", gap:8, padding:"14px 20px", flexWrap:"wrap" }}>
         {["available","last","full","blocked"].map(s=><Chip key={s} status={s} />)}
       </div>
@@ -477,7 +487,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
   );
 }
 
-function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, flashLink, event, isSubmitting }) {
+function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, event, isSubmitting }) {
   if (!bookModal) return null;
   const maxDob = new Date(new Date().setFullYear(new Date().getFullYear()-18)).toISOString().split("T")[0];
   return (
@@ -488,15 +498,6 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
             <div style={{ fontSize:10, color:T.accent, letterSpacing:"0.18em", marginBottom:4, textTransform:"uppercase" }}>Agendar horario</div>
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:38, letterSpacing:"0.05em", lineHeight:1 }}>{bookModal.time}</div>
           </div>
-          {flashLink ? (
-            <a href={flashLink} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:8, background:T.accentDim, border:`1px solid ${T.accent}`, borderRadius:8, padding:"10px 14px", color:T.accent, fontSize:13, fontWeight:600, textDecoration:"none", marginBottom:18 }}>
-              Ver catalogo de designs Flash Day
-            </a>
-          ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:8, background:T.surface3, border:`1px dashed ${T.border2}`, borderRadius:8, padding:"10px 14px", color:T.textDim, fontSize:12, marginBottom:18 }}>
-              Catalogo de designs em breve
-            </div>
-          )}
           <div style={{ marginBottom:14 }}>
             <label style={lbl}>Nome completo *</label>
             <input type="text" placeholder="Seu nome" value={bookForm.name} onChange={e=>setBookForm(p=>({...p,name:e.target.value}))} style={inp} />
@@ -550,7 +551,7 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
           </div>
           <div style={{ marginBottom:20 }}>
             <label style={lbl}>Numero do arquivo do design</label>
-            <textarea placeholder="Ex: arquivo 03, foto 07... consulte o catalogo de designs acima!" value={bookForm.notes} onChange={e=>setBookForm(p=>({...p,notes:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
+            <textarea placeholder="Ex: arquivo 03, foto 07... consulte o catalogo de designs!" value={bookForm.notes} onChange={e=>setBookForm(p=>({...p,notes:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
           </div>
           <div style={{ background:"#0d1a0d", border:`1px solid #22c55e28`, borderRadius:10, padding:"14px 16px", marginBottom:20 }}>
             <div style={{ fontSize:12, fontWeight:600, color:T.green, marginBottom:6 }}>Confirmacao por sinal</div>
@@ -1333,7 +1334,7 @@ export default function FlashDay() {
       </header>
 
       {view==="agenda" ? (
-        <AgendaView event={event} slots={slots} slotStats={slotStats} getStatus={getStatus} onBook={setBookModal} />
+        <AgendaView event={event} slots={slots} slotStats={slotStats} getStatus={getStatus} onBook={setBookModal} flashLink={flashLink} />
       ) : !adminAuth ? (
         <LoginScreen loginPwd={loginPwd} setLoginPwd={setLoginPwd} loginErr={loginErr} setLoginErr={setLoginErr} onLogin={handleLogin} />
       ) : (
@@ -1354,7 +1355,7 @@ export default function FlashDay() {
         </div>
       )}
 
-      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} flashLink={flashLink} event={event} isSubmitting={isSubmitting} />
+      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} event={event} isSubmitting={isSubmitting} />
       <EditModal editModal={editModal} setEditModal={setEditModal} slots={slots} onSave={handleSaveEdit} onRequestCancel={()=>setConfirmId(editModal.id)} />
 
       {donationModal && (
