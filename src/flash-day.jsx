@@ -645,8 +645,13 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
           </div>
           {genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart) && (
             <a href={genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart)} target="_blank" rel="noopener noreferrer"
-              style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:T.surface3, border:`1px solid ${T.border2}`, borderRadius:8, padding:"11px 16px", color:T.textMuted, fontSize:13, textDecoration:"none", marginBottom:16 }}>
-              📅 Adicionar na agenda do Google Calendar
+              style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"#0d1a2e", border:`1px solid #3b82f680`, borderRadius:10, padding:"14px 18px", color:"#60a5fa", fontSize:14, fontWeight:600, textDecoration:"none", marginBottom:16, letterSpacing:"0.02em" }}>
+              <span style={{ fontSize:20 }}>📅</span>
+              <div>
+                <div>Salvar na agenda</div>
+                <div style={{ fontSize:11, fontWeight:400, color:"#93c5fd", marginTop:2 }}>Adicionar ao Google Calendar</div>
+              </div>
+              <span style={{ marginLeft:"auto", fontSize:16, opacity:0.7 }}>↗</span>
             </a>
           )}
           <button onClick={onClose} style={{ ...btnP, width:"100%" }}>Entendido, vou pagar o sinal</button>
