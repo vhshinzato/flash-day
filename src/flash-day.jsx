@@ -895,7 +895,7 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
           <div>
             <label style={lbl}>Quantidade de caixas</label>
-            <input type="number" min="0" placeholder="0" value={sessionForm.caixasRecebidas} onChange={e=>setSessionForm(p=>({...p,caixasRecebidas:e.target.value}))} style={{ ...inp, textAlign:"right" }} />
+            <input type="number" min="0" placeholder="0" value={sessionForm.caixasRecebidas} onChange={e=>setSessionForm(p=>({...p,caixasRecebidas:e.target.value}))} onKeyDown={e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown")e.preventDefault()}} style={{ ...inp, textAlign:"right" }} />
           </div>
           {Number(sessionForm.caixasRecebidas)>0 && (
             <div style={{ display:"flex", alignItems:"flex-end" }}>
@@ -912,11 +912,11 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
           <div>
             <label style={lbl}>Valor cobrado (R$)</label>
-            <input type="number" placeholder="0,00" value={sessionForm.valorCobrado} onChange={e=>setSessionForm(p=>({...p,valorCobrado:e.target.value}))} style={{ ...inp, textAlign:"right" }} />
+            <input type="number" placeholder="0,00" value={sessionForm.valorCobrado} onChange={e=>setSessionForm(p=>({...p,valorCobrado:e.target.value}))} onKeyDown={e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown")e.preventDefault()}} style={{ ...inp, textAlign:"right" }} />
           </div>
           <div>
             <label style={lbl}>Duracao (min)</label>
-            <input type="number" placeholder="60" value={sessionForm.duracao} onChange={e=>setSessionForm(p=>({...p,duracao:e.target.value}))} style={{ ...inp, textAlign:"right" }} />
+            <input type="number" placeholder="60" value={sessionForm.duracao} onChange={e=>setSessionForm(p=>({...p,duracao:e.target.value}))} onKeyDown={e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown")e.preventDefault()}} style={{ ...inp, textAlign:"right" }} />
           </div>
         </div>
       </div>
@@ -1420,7 +1420,7 @@ export default function FlashDay() {
           </div>
           <div style={{ marginBottom:14 }}>
             <label style={lbl}>Quantidade de caixas</label>
-            <input type="number" min="1" placeholder="Ex: 3" value={donationForm.caixas} onChange={e=>setDonationForm(p=>({...p,caixas:e.target.value}))} style={inp} />
+            <input type="number" min="1" placeholder="Ex: 3" value={donationForm.caixas} onChange={e=>setDonationForm(p=>({...p,caixas:e.target.value}))} onKeyDown={e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown")e.preventDefault()}} style={inp} />
           </div>
           <div style={{ marginBottom:22 }}>
             <label style={lbl}>Observacoes (opcional)</label>
