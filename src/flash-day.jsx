@@ -286,7 +286,7 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook, flashLink }) {
   );
 }
 
-function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, onEdit, onConfirm, onConcluir, onReminder, onDelete }) {
+function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, sortBy, setSortBy, onEdit, onConfirm, onConcluir, onReminder, onDelete }) {
   return (
     <div style={{ maxWidth:820, margin:"0 auto", padding:"24px 16px" }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
@@ -315,6 +315,11 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
           <option value="confirmed">Confirmados</option>
           <option value="done">Realizados</option>
           <option value="cancelled">Cancelados</option>
+        </select>
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{ ...inp, width:"auto", paddingRight:32 }}>
+          <option value="time">Por horário</option>
+          <option value="newest">Mais recente</option>
+          <option value="oldest">Mais antigo</option>
         </select>
       </div>
       {filteredBookings.length===0 && <div style={{ textAlign:"center", color:T.textDim, padding:"48px 0", fontSize:14 }}>Nenhum agendamento encontrado.</div>}
@@ -971,6 +976,7 @@ export default function FlashDay() {
   const [toast, setToast]         = useState(null);
   const [search, setSearch]       = useState("");
   const [filterSt, setFilterSt]   = useState("all");
+  const [sortBy, setSortBy]       = useState("time");
   const [settingsForm, setSettingsForm] = useState({...INIT_EVENT});
   const [sessionForm, setSessionForm] = useState({ valorCobrado:"", duracao:"", agulhas:"", tintas:"", caixasRecebidas:0, obs:"" });
   const [pwdForm, setPwdForm]     = useState({ current:"", newPwd:"", confirm:"" });
@@ -1085,11 +1091,22 @@ export default function FlashDay() {
     totalSessoes: bookings.filter(b=>b.status==="done"&&b.sessao?.valorCobrado).reduce((a,b)=>a+Number(b.sessao.valorCobrado),0),
   }),[bookings]);
 
-  const filteredBookings = useMemo(()=>bookings.filter(b=>{
-    if (filterSt!=="all"&&b.status!==filterSt) return false;
-    if (search){ const q=search.toLowerCase(); return b.name.toLowerCase().includes(q)||b.phone.includes(q); }
-    return true;
-  }),[bookings,filterSt,search]);
+  const filteredBookings = useMemo(()=>{
+    const toMin = t => { const [h,m]=(t||"0:0").split(":").map(Number); return h*60+m; };
+    const filtered = bookings.filter(b=>{
+      if (filterSt!=="all"&&b.status!==filterSt) return false;
+      if (search){ const q=search.toLowerCase(); return b.name.toLowerCase().includes(q)||b.phone.includes(q); }
+      return true;
+    });
+    if (sortBy==="time") {
+      filtered.sort((a,b)=>{ const sa=slots.find(s=>s.id===a.slotId); const sb=slots.find(s=>s.id===b.slotId); return toMin(sa?.time)-toMin(sb?.time); });
+    } else if (sortBy==="newest") {
+      filtered.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    } else {
+      filtered.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+    }
+    return filtered;
+  },[bookings,filterSt,search,sortBy,slots]);
 
   const handleLogin = ()=>{ if(loginPwd===storedPwd){setAdminAuth(true);setLoginErr(false);setLoginPwd("");}else{setLoginErr(true);setLoginPwd("");} };
   const handleChangePwd = async newPwd=>{
@@ -1378,7 +1395,7 @@ export default function FlashDay() {
             </div>
             <button onClick={()=>{setAdminAuth(false);setView("agenda");}} style={{ background:"transparent", border:"none", color:T.textDim, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:"0 4px", flexShrink:0 }}>Sair</button>
           </div>
-          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} />}
+          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} />}
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
