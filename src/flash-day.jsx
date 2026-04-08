@@ -362,6 +362,11 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
                   Concluir
                 </button>
               </>)}
+              {b.status==="done" && (
+                <button onClick={e=>{ e.stopPropagation(); onConcluir(b, true); }} style={{ background:"#0a1a2e", color:"#60a5fa", border:"1px solid #60a5fa30", borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
+                  Editar sessao
+                </button>
+              )}
               {b.status==="cancelled" && (
                 <button onClick={e=>{ e.stopPropagation(); if(window.confirm("Excluir agendamento de " + b.name + "?")) onDelete(b.id); }} style={{ background:"#200c0c", color:T.red, border:`1px solid ${T.redDim}`, borderRadius:8, padding:"7px 12px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
                   Excluir
@@ -870,13 +875,13 @@ function DoacoesTab({ donations, onAddDonation, bookings }) {
 }
 
 
-function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave, onClose }) {
+function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave, onClose, isEdit }) {
   if (!sessionModal) return null;
   const slot = slots.find(s=>s.id===sessionModal.slotId);
   return (
     <Overlay onClose={onClose}>
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:10, color:"#60a5fa", letterSpacing:"0.18em", marginBottom:4, textTransform:"uppercase" }}>Concluir sessao</div>
+        <div style={{ fontSize:10, color:"#60a5fa", letterSpacing:"0.18em", marginBottom:4, textTransform:"uppercase" }}>{isEdit ? "Editar sessao" : "Concluir sessao"}</div>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:"0.04em", lineHeight:1 }}>{sessionModal.name}</div>
         <div style={{ fontSize:12, color:T.textMuted, marginTop:4, display:"flex", gap:12 }}>
           {slot && <span>Horario: {slot.time}</span>}
@@ -938,13 +943,15 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
         <textarea placeholder="Como foi a sessao, retoque necessario, etc..." value={sessionForm.obs} onChange={e=>setSessionForm(p=>({...p,obs:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
       </div>
 
-      <div style={{ background:"#0a1a2e", border:"1px solid #60a5fa30", borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:12, color:"#93c5fd", lineHeight:1.6 }}>
-        O agendamento sera marcado como <strong>Realizado</strong> ao salvar.
-      </div>
+      {!isEdit && (
+        <div style={{ background:"#0a1a2e", border:"1px solid #60a5fa30", borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:12, color:"#93c5fd", lineHeight:1.6 }}>
+          O agendamento sera marcado como <strong>Realizado</strong> ao salvar.
+        </div>
+      )}
 
       <div style={{ display:"flex", gap:10 }}>
         <button onClick={onClose} style={{ ...btnS, flex:1 }}>Cancelar</button>
-        <button onClick={onSave} style={{ ...btnP, flex:2 }}>Concluir sessao</button>
+        <button onClick={onSave} style={{ ...btnP, flex:2 }}>{isEdit ? "Salvar alteracoes" : "Concluir sessao"}</button>
       </div>
     </Overlay>
   );
@@ -969,6 +976,7 @@ export default function FlashDay() {
   const [editModal, setEditModal] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [sessionModal, setSessionModal] = useState(null);
+  const [isEditSession, setIsEditSession] = useState(false);
   const [donations, setDonations]       = useState(INIT_DONATIONS);
   const [donationModal, setDonationModal] = useState(false);
   const [donationForm, setDonationForm]  = useState({ nome:"", caixas:1, obs:"" });
@@ -1247,17 +1255,33 @@ export default function FlashDay() {
     showToast("Doacao registrada!");
   };
 
-  const handleOpenSession = (booking)=>{
+  const handleOpenSession = (booking, edit=false)=>{
     setSessionModal(booking);
-    setSessionForm({ valorCobrado:"", duracao:"", agulhas:"", tintas:"", caixasRecebidas:0, obs:"" });
+    setIsEditSession(edit);
+    if (edit && booking.sessao) {
+      setSessionForm({
+        valorCobrado: booking.sessao.valorCobrado||"",
+        duracao: booking.sessao.duracao||"",
+        agulhas: booking.sessao.agulhas||"",
+        tintas: booking.sessao.tintas||"",
+        caixasRecebidas: booking.sessao.caixasRecebidas||0,
+        obs: booking.sessao.obs||"",
+      });
+    } else {
+      setSessionForm({ valorCobrado:"", duracao:"", agulhas:"", tintas:"", caixasRecebidas:0, obs:"" });
+    }
   };
 
   const handleSaveSession = async ()=>{
     const caixasCliente = Number(sessionForm.caixasRecebidas)||0;
-    const sessaoData = { ...sessionForm, concluidoEm: new Date().toISOString() };
+    const sessaoData = {
+      ...sessionForm,
+      concluidoEm: isEditSession ? sessionModal.sessao?.concluidoEm : new Date().toISOString(),
+      editadoEm: isEditSession ? new Date().toISOString() : undefined,
+    };
     await supabase.from("bookings").update({ status:"done", sessao:sessaoData }).eq("id",sessionModal.id);
     setBookings(p=>p.map(b=>b.id===sessionModal.id ? { ...b, status:"done", sessao:sessaoData } : b));
-    if (caixasCliente > 0) {
+    if (!isEditSession && caixasCliente > 0) {
       const { error:donErr } = await supabase.from("donations").insert([{
         tipo:"cliente", nome:sessionModal.name, caixas:caixasCliente,
         obs:"Caixas recebidas na sessao", booking_id:sessionModal.id
@@ -1265,7 +1289,7 @@ export default function FlashDay() {
       if (!donErr) setDonations(p=>[...p,{ id:"d"+Date.now(), tipo:"cliente", nome:sessionModal.name, caixas:caixasCliente, obs:"Caixas recebidas na sessao", data:new Date().toISOString(), bookingId:sessionModal.id }]);
     }
     setSessionModal(null);
-    showToast("Sessao concluida!");
+    showToast(isEditSession ? "Sessao atualizada!" : "Sessao concluida!");
   };
 
   const handleSaveEdit = async ()=>{
@@ -1432,7 +1456,7 @@ export default function FlashDay() {
           </div>
         </Overlay>
       )}
-      <SessionModal sessionModal={sessionModal} sessionForm={sessionForm} setSessionForm={setSessionForm} slots={slots} onSave={handleSaveSession} onClose={()=>setSessionModal(null)} />
+      <SessionModal sessionModal={sessionModal} sessionForm={sessionForm} setSessionForm={setSessionForm} slots={slots} onSave={handleSaveSession} onClose={()=>setSessionModal(null)} isEdit={isEditSession} />
 
       {confirmId && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.92)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
