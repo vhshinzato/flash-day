@@ -1034,6 +1034,7 @@ export default function FlashDay() {
           id: b.id, slotId: b.slot_id, name: b.name, phone: b.phone,
           dob: b.dob||"", bodyPart: b.body_part||"", caixas: b.caixas||0,
           notes: b.notes||"", status: b.status, sessao: b.sessao||null,
+          createdAt: b.created_at||"",
         })));
       }
       // Load donations
@@ -1055,7 +1056,7 @@ export default function FlashDay() {
           if (p.find(x=>x.id===b.id)) return p;
           // remove qualquer entrada temp com mesmo nome+slot (criada localmente antes)
           const filtered = p.filter(x=>!(x.id.startsWith("temp-")&&x.slotId===b.slot_id&&x.name===b.name));
-          return [...filtered, { id:b.id, slotId:b.slot_id, name:b.name, phone:b.phone, dob:b.dob||"", bodyPart:b.body_part||"", caixas:b.caixas||0, notes:b.notes||"", status:b.status, sessao:null }];
+          return [...filtered, { id:b.id, slotId:b.slot_id, name:b.name, phone:b.phone, dob:b.dob||"", bodyPart:b.body_part||"", caixas:b.caixas||0, notes:b.notes||"", status:b.status, sessao:null, createdAt:b.created_at||"" }];
         });
       })
       .on("postgres_changes", { event:"UPDATE", schema:"public", table:"bookings" }, payload=>{
