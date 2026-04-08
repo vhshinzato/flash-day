@@ -1102,9 +1102,9 @@ export default function FlashDay() {
     if (sortBy==="time") {
       filtered.sort((a,b)=>{ const sa=slots.find(s=>s.id===a.slotId); const sb=slots.find(s=>s.id===b.slotId); return toMin(sa?.time)-toMin(sb?.time); });
     } else if (sortBy==="newest") {
-      filtered.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      filtered.sort((a,b)=>{ const ta=new Date(a.createdAt).getTime()||0; const tb=new Date(b.createdAt).getTime()||0; return tb-ta; });
     } else {
-      filtered.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+      filtered.sort((a,b)=>{ const ta=new Date(a.createdAt).getTime()||0; const tb=new Date(b.createdAt).getTime()||0; return ta-tb; });
     }
     return filtered;
   },[bookings,filterSt,search,sortBy,slots]);
@@ -1161,6 +1161,7 @@ export default function FlashDay() {
         caixas: bookForm.caixas || 0,
         notes: bookForm.notes || null,
         status: "pending",
+        created_at: new Date().toISOString(),
       }]);
       if (error) { showToast("Erro ao salvar agendamento","err"); console.error(error); return; }
       // NAO adicionar localmente — o Realtime ja vai inserir via postgres_changes INSERT
