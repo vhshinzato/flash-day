@@ -59,10 +59,16 @@ function calcAge(dob) {
 }
 function adjustBrightness(hex, amount) {
   const n = parseInt(hex.slice(1), 16);
-  const r = Math.min(255, ((n>>16)&0xff)+amount);
-  const g = Math.min(255, ((n>>8)&0xff)+amount);
-  const b = Math.min(255, (n&0xff)+amount);
+  const r = Math.min(255, Math.max(0, ((n>>16)&0xff)+amount));
+  const g = Math.min(255, Math.max(0, ((n>>8)&0xff)+amount));
+  const b = Math.min(255, Math.max(0, (n&0xff)+amount));
   return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function isLightColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n>>16)&0xff, g = (n>>8)&0xff, b = n&0xff;
+  // luminância percebida (fórmula WCAG)
+  return (0.299*r + 0.587*g + 0.114*b) > 128;
 }
 function crc16(str) {
   let crc = 0xFFFF;
@@ -1084,9 +1090,26 @@ export default function FlashDay() {
   T.accent = accentColor;
   T.accentDim = accentColor + "18";
   T.bg = bgColor;
-  T.surface = bgColor === "#080808" ? "#111111" : adjustBrightness(bgColor, 15);
-  T.surface2 = bgColor === "#080808" ? "#181818" : adjustBrightness(bgColor, 25);
-  T.surface3 = bgColor === "#080808" ? "#222222" : adjustBrightness(bgColor, 35);
+  const _light = isLightColor(bgColor);
+  if (_light) {
+    T.surface   = adjustBrightness(bgColor, -12);
+    T.surface2  = adjustBrightness(bgColor, -22);
+    T.surface3  = adjustBrightness(bgColor, -32);
+    T.border    = adjustBrightness(bgColor, -40);
+    T.border2   = adjustBrightness(bgColor, -55);
+    T.text      = "#111111";
+    T.textMuted = "#555555";
+    T.textDim   = "#888888";
+  } else {
+    T.surface   = adjustBrightness(bgColor, 10);
+    T.surface2  = adjustBrightness(bgColor, 18);
+    T.surface3  = adjustBrightness(bgColor, 28);
+    T.border    = adjustBrightness(bgColor, 22);
+    T.border2   = adjustBrightness(bgColor, 32);
+    T.text      = "#f0f0f0";
+    T.textMuted = "#777777";
+    T.textDim   = "#444444";
+  }
 
   useEffect(()=>{
     const l=document.createElement("link");
@@ -1119,7 +1142,7 @@ export default function FlashDay() {
         if (cfg.pix_key) setPixConfig({ key:cfg.pix_key, keyType:cfg.pix_key_type||"cpf", holderName:cfg.pix_holder_name||"", bank:cfg.pix_bank||"" });
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
         if (cfg.accent_color) { setAccentColor(cfg.accent_color); localStorage.setItem("fd_accent_color", cfg.accent_color); }
-        if (cfg.bg_color) { setBgColor(cfg.bg_color); localStorage.setItem("fd_bg_color", cfg.bg_color); document.body.style.background = cfg.bg_color; }
+        if (cfg.bg_color) { setBgColor(cfg.bg_color); localStorage.setItem("fd_bg_color", cfg.bg_color); document.body.style.background = cfg.bg_color; document.body.style.color = isLightColor(cfg.bg_color) ? "#111111" : "#f0f0f0"; }
         if (cfg.admin_password) {
           setStoredPwd(cfg.admin_password);
           localStorage.setItem("fd_admin_pwd", cfg.admin_password);
@@ -1481,6 +1504,7 @@ export default function FlashDay() {
     setAccentColor(accent);
     setBgColor(bg);
     document.body.style.background = bg;
+    document.body.style.color = isLightColor(bg) ? "#111111" : "#f0f0f0";
     try {
       const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
       if (cfgRows && cfgRows.length > 0) {
