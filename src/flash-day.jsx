@@ -14,9 +14,10 @@ const T = {
   border:"#232323", border2:"#2e2e2e", accent:"#e63946", accentDim:"#e6394618",
   text:"#f0f0f0", textMuted:"#777777", textDim:"#444444",
   green:"#22c55e", greenDim:"#22c55e18", amber:"#f59e0b", amberDim:"#f59e0b18",
-  red:"#e63946", redDim:"#e6394618", gray:"#555555", grayDim:"#55555518",
+  red:"#d63031", redDim:"#d6303118", gray:"#555555", grayDim:"#55555518",
 };
 
+// Estilos dinamicos — funcoes pra sempre ler T.accent atualizado
 const inp = {
   width:"100%", background:T.surface3, border:`1px solid ${T.border2}`,
   borderRadius:8, padding:"10px 14px", color:T.text, fontSize:14,
@@ -24,7 +25,7 @@ const inp = {
   WebkitAppearance:"none",
 };
 const lbl = { fontSize:11, color:T.textMuted, marginBottom:5, display:"block", letterSpacing:"0.07em", textTransform:"uppercase" };
-const btnP = { background:T.accent, color:"#fff", border:"none", borderRadius:8, padding:"11px 20px", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" };
+const btnP = () => ({ background:T.accent, color:"#fff", border:"none", borderRadius:8, padding:"11px 20px", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" });
 const btnS = { background:"transparent", color:T.textMuted, border:`1px solid ${T.border2}`, borderRadius:8, padding:"11px 20px", fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" };
 const btnD = { background:"#200c0c", color:T.red, border:`1px solid ${T.redDim}`, borderRadius:8, padding:"11px 20px", fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" };
 
@@ -55,6 +56,13 @@ function calcAge(dob) {
   const mo = today.getMonth() - birth.getMonth();
   if (mo < 0 || (mo===0 && today.getDate() < birth.getDate())) age--;
   return age;
+}
+function adjustBrightness(hex, amount) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((n>>16)&0xff)+amount);
+  const g = Math.min(255, ((n>>8)&0xff)+amount);
+  const b = Math.min(255, (n&0xff)+amount);
+  return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
 function crc16(str) {
   let crc = 0xFFFF;
@@ -154,7 +162,7 @@ function LoginScreen({ loginPwd, setLoginPwd, loginErr, setLoginErr, onLogin }) 
             style={{ ...inp, borderColor:loginErr?T.red:T.border2 }} />
           {loginErr && <div style={{ fontSize:12, color:T.red, marginTop:6 }}>Senha incorreta. Tente novamente.</div>}
         </div>
-        <button onClick={onLogin} style={{ ...btnP, width:"100%", marginTop:4 }}>Entrar</button>
+        <button onClick={onLogin} style={{ ...btnP(), width:"100%", marginTop:4 }}>Entrar</button>
         <div style={{ textAlign:"center", marginTop:16, fontSize:11, color:T.textDim }}>
           Senha padrao: <span style={{ color:T.textMuted, fontFamily:"monospace" }}>inkstation2026</span>
         </div>
@@ -210,7 +218,7 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook, flashLink }) {
   const countdown   = useCountdown(event.date);
   return (
     <div style={{ minHeight:"100vh", paddingBottom:60 }}>
-      <div style={{ background:"linear-gradient(180deg,#1c0406 0%,#080808 100%)", padding:"44px 20px 36px", borderBottom:`1px solid ${T.border}` }}>
+      <div style={{ background:`linear-gradient(180deg,${T.accent}22 0%,${T.bg} 100%)`, padding:"44px 20px 36px", borderBottom:`1px solid ${T.border}` }}>
         <div style={{ maxWidth:560, margin:"0 auto", textAlign:"center" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:10 }}>
             <span style={{ width:24, height:1, background:T.accent }} />
@@ -277,7 +285,7 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook, flashLink }) {
                   </div>
                 </div>
               </div>
-              {canBook && <button onClick={()=>onBook({slotId:slot.id,time:slot.time})} style={{ ...btnP, padding:"8px 16px", fontSize:13, flexShrink:0 }}>Agendar</button>}
+              {canBook && <button onClick={()=>onBook({slotId:slot.id,time:slot.time})} style={{ ...btnP(), padding:"8px 16px", fontSize:13, flexShrink:0 }}>Agendar</button>}
             </div>
           );
         })}
@@ -428,10 +436,20 @@ const COLOR_PRESETS = [
   { label:"Roxo",      value:"#8b5cf6" },
 ];
 
-function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, onSaveColors }) {
+const BG_PRESETS = [
+  { label:"Preto",       value:"#080808" },
+  { label:"Grafite",     value:"#111827" },
+  { label:"Azul escuro", value:"#0a0f1e" },
+  { label:"Verde escuro",value:"#071a0f" },
+  { label:"Roxo escuro", value:"#0f0a1e" },
+  { label:"Marrom",      value:"#150c06" },
+];
+
+function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors }) {
   const [localFlashLink, setLocalFlashLink] = useState(flashLink);
   const [pix, setPix] = useState({...pixConfig});
   const [localAccent, setLocalAccent] = useState(accentColor);
+  const [localBg, setLocalBg] = useState(bgColor);
   const preview = useMemo(()=>genSlots(settingsForm.startTime,settingsForm.endTime,settingsForm.interval),[settingsForm.startTime,settingsForm.endTime,settingsForm.interval]);
   return (
     <div style={{ maxWidth:580, margin:"0 auto", padding:"24px 16px" }}>
@@ -471,7 +489,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
         <div style={{ background:"#0d1a0d", border:`1px solid ${T.greenDim}`, borderRadius:8, padding:"10px 14px", marginBottom:20, fontSize:12, color:T.green }}>
           Novos horarios serao adicionados. Agendamentos, doacoes e faturamento existentes sao preservados.
         </div>
-        <button onClick={onSaveEvent} style={{ ...btnP, width:"100%" }}>Salvar Configuracoes</button>
+        <button onClick={onSaveEvent} style={{ ...btnP(), width:"100%" }}>Salvar Configuracoes</button>
         <div style={{ display:"flex", gap:10, marginTop:12 }}>
           <button onClick={onSaveTemplate} style={{ ...btnS, flex:1, fontSize:12, padding:"8px 14px" }}>Salvar como template</button>
           <button onClick={onLoadTemplate} disabled={!savedTemplate} style={{ ...btnS, flex:1, fontSize:12, padding:"8px 14px", opacity:savedTemplate?1:0.4, cursor:savedTemplate?"pointer":"not-allowed" }}>
@@ -491,7 +509,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
             Previa: <a href={localFlashLink} target="_blank" rel="noopener noreferrer" style={{ color:T.accent }}>abrir link</a>
           </div>
         )}
-        <button onClick={()=>onSaveFlashLink(localFlashLink)} style={{ ...btnP, width:"100%" }}>Salvar link dos designs</button>
+        <button onClick={()=>onSaveFlashLink(localFlashLink)} style={{ ...btnP(), width:"100%" }}>Salvar link dos designs</button>
       </div>
 
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
@@ -526,7 +544,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
             {pix.bank && <div>Banco: {pix.bank}</div>}
           </div>
         )}
-        <button onClick={()=>onSavePix(pix)} style={{ ...btnP, width:"100%" }}>Salvar dados Pix</button>
+        <button onClick={()=>onSavePix(pix)} style={{ ...btnP(), width:"100%" }}>Salvar dados Pix</button>
       </div>
 
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
@@ -552,10 +570,39 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
           <div style={{ display:"flex", alignItems:"center", gap:12, background:T.surface3, borderRadius:8, padding:"10px 14px" }}>
             <div style={{ width:20, height:20, borderRadius:4, background:localAccent, flexShrink:0 }} />
             <span style={{ fontSize:13, color:T.text, fontWeight:600 }}>{localAccent.toUpperCase()}</span>
-            <span style={{ fontSize:11, color:T.textMuted }}>— prévia da cor selecionada</span>
+            <span style={{ fontSize:11, color:T.textMuted }}>— cor principal</span>
           </div>
         </div>
-        <button onClick={()=>onSaveColors(localAccent)} style={{ ...btnP, width:"100%", background:localAccent }}>Salvar cor do evento</button>
+        <div style={{ marginBottom:16 }}>
+          <label style={lbl}>Cor de fundo</label>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:14 }}>
+            {BG_PRESETS.map(c=>(
+              <button key={c.value} type="button" onClick={()=>setLocalBg(c.value)} title={c.label} style={{
+                width:36, height:36, borderRadius:"50%", background:c.value, border:`3px solid ${localBg===c.value?"#fff":"#333"}`,
+                cursor:"pointer", boxShadow:localBg===c.value?`0 0 0 2px ${localAccent}`:"none", flexShrink:0,
+              }} />
+            ))}
+            <div style={{ position:"relative", width:36, height:36, flexShrink:0 }}>
+              <input type="color" value={localBg} onChange={e=>setLocalBg(e.target.value)}
+                style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer", padding:0, border:"none" }} />
+              <div style={{ width:36, height:36, borderRadius:"50%", background:BG_PRESETS.some(c=>c.value===localBg)?T.surface3:localBg,
+                border:`3px solid ${!BG_PRESETS.some(c=>c.value===localBg)?"#fff":"#333"}`,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, pointerEvents:"none",
+                boxShadow:!BG_PRESETS.some(c=>c.value===localBg)?`0 0 0 2px ${localAccent}`:"none" }}>🎨</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:12, background:T.surface3, borderRadius:8, padding:"10px 14px" }}>
+            <div style={{ width:20, height:20, borderRadius:4, background:localBg, border:"1px solid #444", flexShrink:0 }} />
+            <span style={{ fontSize:13, color:T.text, fontWeight:600 }}>{localBg.toUpperCase()}</span>
+            <span style={{ fontSize:11, color:T.textMuted }}>— cor de fundo</span>
+          </div>
+        </div>
+        <div style={{ background:localBg, border:`1px solid ${localAccent}40`, borderRadius:10, padding:"14px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:12, height:12, borderRadius:"50%", background:localAccent }} />
+          <span style={{ fontSize:12, color:localAccent, fontWeight:600 }}>Prévia da combinação</span>
+          <span style={{ fontSize:11, color:"#888" }}>— como vai aparecer no site</span>
+        </div>
+        <button onClick={()=>onSaveColors(localAccent, localBg)} style={{ ...btnP(), width:"100%", background:localAccent }}>Salvar identidade visual</button>
       </div>
 
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24 }}>
@@ -567,7 +614,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
           </div>
         ))}
         {pwdErr && <div style={{ fontSize:12, color:T.red, marginBottom:10 }}>{pwdErr}</div>}
-        <button onClick={onSavePwd} style={{ ...btnP, width:"100%", marginTop:4 }}>Alterar Senha</button>
+        <button onClick={onSavePwd} style={{ ...btnP(), width:"100%", marginTop:4 }}>Alterar Senha</button>
       </div>
     </div>
   );
@@ -647,7 +694,7 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
           </div>
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={onClose} style={{ ...btnS, flex:1 }}>Cancelar</button>
-            <button onClick={onBook} disabled={isSubmitting} style={{ ...btnP, flex:2, opacity:isSubmitting?0.6:1, cursor:isSubmitting?"not-allowed":"pointer" }}>{isSubmitting?"Salvando...":"Agendar"}</button>
+            <button onClick={onBook} disabled={isSubmitting} style={{ ...btnP(), flex:2, opacity:isSubmitting?0.6:1, cursor:isSubmitting?"not-allowed":"pointer" }}>{isSubmitting?"Salvando...":"Agendar"}</button>
           </div>
         </>
       ) : (
@@ -705,7 +752,7 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
               <span style={{ marginLeft:"auto", fontSize:16, opacity:0.7 }}>↗</span>
             </a>
           )}
-          <button onClick={onClose} style={{ ...btnP, width:"100%" }}>Entendido, vou pagar o sinal</button>
+          <button onClick={onClose} style={{ ...btnP(), width:"100%" }}>Entendido, vou pagar o sinal</button>
         </>
       )}
     </Overlay>
@@ -765,7 +812,7 @@ function EditModal({ editModal, setEditModal, slots, onSave, onRequestCancel }) 
       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
         <button onClick={onRequestCancel} style={{ ...btnD, flex:"1 1 120px" }}>Cancelar ag.</button>
         <button onClick={()=>setEditModal(null)} style={{ ...btnS, flex:"1 1 80px" }}>Fechar</button>
-        <button onClick={onSave} style={{ ...btnP, flex:"2 1 140px" }}>Salvar</button>
+        <button onClick={onSave} style={{ ...btnP(), flex:"2 1 140px" }}>Salvar</button>
       </div>
     </Overlay>
   );
@@ -792,7 +839,7 @@ function ResumoTab({ bookings, donations, slots, event }) {
 
   return (
     <div style={{ maxWidth:680, margin:"0 auto", padding:"24px 16px" }}>
-      <div style={{ background:"linear-gradient(135deg,#1c0406,#0a0a0a)", border:`1px solid ${T.accent}30`, borderRadius:14, padding:"20px 24px", marginBottom:24, textAlign:"center" }}>
+      <div style={{ background:`linear-gradient(135deg,${T.accent}20,${T.bg})`, border:`1px solid ${T.accent}30`, borderRadius:14, padding:"20px 24px", marginBottom:24, textAlign:"center" }}>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:"0.1em", color:T.accent, marginBottom:4 }}>Resumo do Evento</div>
         <div style={{ fontSize:13, color:T.textMuted }}>{event.name} — {fmtDate(event.date)}</div>
       </div>
@@ -882,7 +929,7 @@ function DoacoesTab({ donations, onAddDonation, bookings }) {
 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
         <div style={{ fontSize:13, color:T.textMuted }}>Historico de arrecadacao</div>
-        <button onClick={onAddDonation} style={{ ...btnP, padding:"8px 16px", fontSize:13 }}>+ Adicionar doacao</button>
+        <button onClick={onAddDonation} style={{ ...btnP(), padding:"8px 16px", fontSize:13 }}>+ Adicionar doacao</button>
       </div>
 
       {donations.length===0 && (
@@ -992,7 +1039,7 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
 
       <div style={{ display:"flex", gap:10 }}>
         <button onClick={onClose} style={{ ...btnS, flex:1 }}>Cancelar</button>
-        <button onClick={onSave} style={{ ...btnP, flex:2 }}>{isEdit ? "Salvar alteracoes" : "Concluir sessao"}</button>
+        <button onClick={onSave} style={{ ...btnP(), flex:2 }}>{isEdit ? "Salvar alteracoes" : "Concluir sessao"}</button>
       </div>
     </Overlay>
   );
@@ -1033,14 +1080,19 @@ export default function FlashDay() {
   const [pixConfig, setPixConfig] = useState(INIT_PIX);
   const [flashLink, setFlashLink] = useState("");
   const [accentColor, setAccentColor] = useState(()=>localStorage.getItem("fd_accent_color")||"#e63946");
+  const [bgColor, setBgColor] = useState(()=>localStorage.getItem("fd_bg_color")||"#080808");
   T.accent = accentColor;
   T.accentDim = accentColor + "18";
+  T.bg = bgColor;
+  T.surface = bgColor === "#080808" ? "#111111" : adjustBrightness(bgColor, 15);
+  T.surface2 = bgColor === "#080808" ? "#181818" : adjustBrightness(bgColor, 25);
+  T.surface3 = bgColor === "#080808" ? "#222222" : adjustBrightness(bgColor, 35);
 
   useEffect(()=>{
     const l=document.createElement("link");
     l.rel="stylesheet"; l.href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap";
     document.head.appendChild(l);
-    Object.assign(document.body.style,{margin:"0",background:T.bg,color:T.text,fontFamily:"'DM Sans',sans-serif"});
+    Object.assign(document.body.style,{margin:"0",background:T.bg,color:T.text,fontFamily:"'DM Sans',sans-serif",minHeight:"100vh"});
     if (!window.emailjs) {
       const s=document.createElement("script");
       s.src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
@@ -1067,6 +1119,7 @@ export default function FlashDay() {
         if (cfg.pix_key) setPixConfig({ key:cfg.pix_key, keyType:cfg.pix_key_type||"cpf", holderName:cfg.pix_holder_name||"", bank:cfg.pix_bank||"" });
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
         if (cfg.accent_color) { setAccentColor(cfg.accent_color); localStorage.setItem("fd_accent_color", cfg.accent_color); }
+        if (cfg.bg_color) { setBgColor(cfg.bg_color); localStorage.setItem("fd_bg_color", cfg.bg_color); document.body.style.background = cfg.bg_color; }
         if (cfg.admin_password) {
           setStoredPwd(cfg.admin_password);
           localStorage.setItem("fd_admin_pwd", cfg.admin_password);
@@ -1422,16 +1475,19 @@ export default function FlashDay() {
     }
     setFlashLink(link); showToast("Link dos designs salvo!");
   };
-  const handleSaveColors = async (color)=>{
-    localStorage.setItem("fd_accent_color", color);
-    setAccentColor(color);
+  const handleSaveColors = async (accent, bg)=>{
+    localStorage.setItem("fd_accent_color", accent);
+    localStorage.setItem("fd_bg_color", bg);
+    setAccentColor(accent);
+    setBgColor(bg);
+    document.body.style.background = bg;
     try {
       const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
       if (cfgRows && cfgRows.length > 0) {
-        await supabase.from("event_config").update({ accent_color:color }).eq("id", cfgRows[0].id);
+        await supabase.from("event_config").update({ accent_color:accent, bg_color:bg }).eq("id", cfgRows[0].id);
       }
     } catch(e) {}
-    showToast("Cor do evento salva!");
+    showToast("Cores do evento salvas!");
   };
 
   const handleSavePwd = ()=>{
@@ -1481,7 +1537,7 @@ export default function FlashDay() {
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
-          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} onSaveColors={handleSaveColors} />}
+          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} />}
         </div>
       )}
 
@@ -1508,7 +1564,7 @@ export default function FlashDay() {
           </div>
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={()=>setDonationModal(false)} style={{ ...btnS, flex:1 }}>Cancelar</button>
-            <button onClick={handleSaveDonation} style={{ ...btnP, flex:2 }}>Registrar doacao</button>
+            <button onClick={handleSaveDonation} style={{ ...btnP(), flex:2 }}>Registrar doacao</button>
           </div>
         </Overlay>
       )}
