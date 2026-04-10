@@ -417,9 +417,21 @@ function SlotsTab({ slots, setSlots, slotStats, event, getStatus }) {
   );
 }
 
-function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate }) {
+const COLOR_PRESETS = [
+  { label:"Vermelho",  value:"#e63946" },
+  { label:"Rosa",      value:"#ec4899" },
+  { label:"Laranja",   value:"#f97316" },
+  { label:"Ambar",     value:"#f59e0b" },
+  { label:"Verde",     value:"#22c55e" },
+  { label:"Ciano",     value:"#06b6d4" },
+  { label:"Azul",      value:"#3b82f6" },
+  { label:"Roxo",      value:"#8b5cf6" },
+];
+
+function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, onSaveColors }) {
   const [localFlashLink, setLocalFlashLink] = useState(flashLink);
   const [pix, setPix] = useState({...pixConfig});
+  const [localAccent, setLocalAccent] = useState(accentColor);
   const preview = useMemo(()=>genSlots(settingsForm.startTime,settingsForm.endTime,settingsForm.interval),[settingsForm.startTime,settingsForm.endTime,settingsForm.interval]);
   return (
     <div style={{ maxWidth:580, margin:"0 auto", padding:"24px 16px" }}>
@@ -515,6 +527,35 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
           </div>
         )}
         <button onClick={()=>onSavePix(pix)} style={{ ...btnP, width:"100%" }}>Salvar dados Pix</button>
+      </div>
+
+      <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
+        <div style={{ fontSize:12, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:18 }}>Identidade Visual do Evento</div>
+        <div style={{ marginBottom:16 }}>
+          <label style={lbl}>Cor principal</label>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:14 }}>
+            {COLOR_PRESETS.map(c=>(
+              <button key={c.value} type="button" onClick={()=>setLocalAccent(c.value)} title={c.label} style={{
+                width:36, height:36, borderRadius:"50%", background:c.value, border:`3px solid ${localAccent===c.value?"#fff":"transparent"}`,
+                cursor:"pointer", boxShadow:localAccent===c.value?`0 0 0 2px ${c.value}`:"none", flexShrink:0,
+              }} />
+            ))}
+            <div style={{ position:"relative", width:36, height:36, flexShrink:0 }}>
+              <input type="color" value={localAccent} onChange={e=>setLocalAccent(e.target.value)}
+                style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer", padding:0, border:"none" }} />
+              <div style={{ width:36, height:36, borderRadius:"50%", background:COLOR_PRESETS.some(c=>c.value===localAccent)?T.surface3:localAccent,
+                border:`3px solid ${!COLOR_PRESETS.some(c=>c.value===localAccent)?"#fff":T.border2}`,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, pointerEvents:"none",
+                boxShadow:!COLOR_PRESETS.some(c=>c.value===localAccent)?`0 0 0 2px ${localAccent}`:"none" }}>🎨</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:12, background:T.surface3, borderRadius:8, padding:"10px 14px" }}>
+            <div style={{ width:20, height:20, borderRadius:4, background:localAccent, flexShrink:0 }} />
+            <span style={{ fontSize:13, color:T.text, fontWeight:600 }}>{localAccent.toUpperCase()}</span>
+            <span style={{ fontSize:11, color:T.textMuted }}>— prévia da cor selecionada</span>
+          </div>
+        </div>
+        <button onClick={()=>onSaveColors(localAccent)} style={{ ...btnP, width:"100%", background:localAccent }}>Salvar cor do evento</button>
       </div>
 
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24 }}>
@@ -991,6 +1032,9 @@ export default function FlashDay() {
   const [pwdErr, setPwdErr]       = useState("");
   const [pixConfig, setPixConfig] = useState(INIT_PIX);
   const [flashLink, setFlashLink] = useState("");
+  const [accentColor, setAccentColor] = useState(()=>localStorage.getItem("fd_accent_color")||"#e63946");
+  T.accent = accentColor;
+  T.accentDim = accentColor + "18";
 
   useEffect(()=>{
     const l=document.createElement("link");
@@ -1022,6 +1066,7 @@ export default function FlashDay() {
         setSettingsForm(ev);
         if (cfg.pix_key) setPixConfig({ key:cfg.pix_key, keyType:cfg.pix_key_type||"cpf", holderName:cfg.pix_holder_name||"", bank:cfg.pix_bank||"" });
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
+        if (cfg.accent_color) { setAccentColor(cfg.accent_color); localStorage.setItem("fd_accent_color", cfg.accent_color); }
         if (cfg.admin_password) {
           setStoredPwd(cfg.admin_password);
           localStorage.setItem("fd_admin_pwd", cfg.admin_password);
@@ -1377,6 +1422,17 @@ export default function FlashDay() {
     }
     setFlashLink(link); showToast("Link dos designs salvo!");
   };
+  const handleSaveColors = async (color)=>{
+    localStorage.setItem("fd_accent_color", color);
+    setAccentColor(color);
+    try {
+      const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
+      if (cfgRows && cfgRows.length > 0) {
+        await supabase.from("event_config").update({ accent_color:color }).eq("id", cfgRows[0].id);
+      }
+    } catch(e) {}
+    showToast("Cor do evento salva!");
+  };
 
   const handleSavePwd = ()=>{
     if (pwdForm.current!==storedPwd)      { setPwdErr("Senha atual incorreta."); return; }
@@ -1425,7 +1481,7 @@ export default function FlashDay() {
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
-          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} />}
+          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} onSaveColors={handleSaveColors} />}
         </div>
       )}
 
