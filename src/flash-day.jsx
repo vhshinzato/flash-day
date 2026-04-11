@@ -98,7 +98,7 @@ function genCalendarUrl(event, time, name, bodyPart) {
   const endH = String(parseInt(hh)+(parseInt(mm)+60>=60?1:0)).padStart(2,"0");
   const endM = String((parseInt(mm)+60)%60).padStart(2,"0");
   const end = `${y}${pad(m)}${pad(d)}T${endH}${endM}00`;
-  const details = encodeURIComponent(["Nome: "+name, bodyPart?"Tatuagem: "+bodyPart:"", "Ink Station Flash Day"].filter(Boolean).join("\n"));
+  const details = encodeURIComponent(["Nome: "+name, bodyPart?"Tatuagem: "+bodyPart:"", event.name].filter(Boolean).join("\n"));
   return "https://calendar.google.com/calendar/render?action=TEMPLATE" +
     "&text=" + encodeURIComponent(event.name) +
     "&dates=" + start + "/" + end +
@@ -161,12 +161,12 @@ function Overlay({ children, onClose }) {
   );
 }
 
-function LoginScreen({ loginPwd, setLoginPwd, loginErr, setLoginErr, onLogin }) {
+function LoginScreen({ loginPwd, setLoginPwd, loginErr, setLoginErr, onLogin, studioName }) {
   return (
     <div style={{ minHeight:"80vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:16, padding:"36px 28px", width:"100%", maxWidth:360 }}>
         <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:"0.12em", color:T.accent, marginBottom:4 }}>INK STATION</div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:"0.12em", color:T.accent, marginBottom:4 }}>{(studioName||"Ink Station").toUpperCase()}</div>
           <div style={{ fontSize:13, color:T.textMuted }}>Acesso restrito ao painel admin</div>
         </div>
         <div style={{ marginBottom:14 }}>
@@ -460,8 +460,9 @@ const BG_PRESETS = [
   { label:"Marrom",      value:"#150c06" },
 ];
 
-function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors, donationConfig, onSaveDonationConfig }) {
+function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors, donationConfig, onSaveDonationConfig, studioName, onSaveStudioName }) {
   const [localFlashLink, setLocalFlashLink] = useState(flashLink);
+  const [localStudioName, setLocalStudioName] = useState(studioName);
   const [pix, setPix] = useState({...pixConfig});
   const [localAccent, setLocalAccent] = useState(accentColor);
   const [localBg, setLocalBg] = useState(bgColor);
@@ -469,6 +470,15 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
   const preview = useMemo(()=>genSlots(settingsForm.startTime,settingsForm.endTime,settingsForm.interval),[settingsForm.startTime,settingsForm.endTime,settingsForm.interval]);
   return (
     <div style={{ maxWidth:580, margin:"0 auto", padding:"24px 16px" }}>
+      <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
+        <div style={{ fontSize:12, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:18 }}>Estudio</div>
+        <div style={{ marginBottom:14 }}>
+          <label style={lbl}>Nome do estudio</label>
+          <input type="text" placeholder="Ex: Ink Station" value={localStudioName} onChange={e=>setLocalStudioName(e.target.value)} style={inp} />
+          <div style={{ fontSize:11, color:T.textDim, marginTop:6 }}>Aparece na aba do navegador, tela de login e e-mails.</div>
+        </div>
+        <button onClick={()=>onSaveStudioName(localStudioName)} style={{ ...btnP(), width:"100%" }}>Salvar nome do estudio</button>
+      </div>
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
         {[{k:"name",label:"Nome do evento",type:"text"},{k:"date",label:"Data",type:"date"},{k:"location",label:"Local",type:"text"}].map(f=>(
           <div key={f.k} style={{ marginBottom:16 }}>
@@ -1160,6 +1170,7 @@ export default function FlashDay() {
   const [pwdErr, setPwdErr]       = useState("");
   const [pixConfig, setPixConfig] = useState(INIT_PIX);
   const [flashLink, setFlashLink] = useState("");
+  const [studioName, setStudioName] = useState(()=>localStorage.getItem("fd_studio_name")||"Ink Station");
   const [donationConfig, setDonationConfig] = useState(DEFAULT_DONATION_CONFIG);
   const [accentColor, setAccentColor] = useState(()=>localStorage.getItem("fd_accent_color")||"#e63946");
   const [bgColor, setBgColor] = useState(()=>localStorage.getItem("fd_bg_color")||"#080808");
@@ -1192,6 +1203,7 @@ export default function FlashDay() {
     l.rel="stylesheet"; l.href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap";
     document.head.appendChild(l);
     Object.assign(document.body.style,{margin:"0",background:T.bg,color:T.text,fontFamily:"'DM Sans',sans-serif",minHeight:"100vh"});
+    document.title = studioName;
     if (!window.emailjs) {
       const s=document.createElement("script");
       s.src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
@@ -1217,6 +1229,7 @@ export default function FlashDay() {
         setSettingsForm(ev);
         if (cfg.pix_key) setPixConfig({ key:cfg.pix_key, keyType:cfg.pix_key_type||"cpf", holderName:cfg.pix_holder_name||"", bank:cfg.pix_bank||"" });
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
+        if (cfg.studio_name) { setStudioName(cfg.studio_name); localStorage.setItem("fd_studio_name", cfg.studio_name); document.title = cfg.studio_name; }
         if (cfg.donation_config) setDonationConfig(cfg.donation_config);
         if (cfg.accent_color) { setAccentColor(cfg.accent_color); localStorage.setItem("fd_accent_color", cfg.accent_color); }
         if (cfg.bg_color) { setBgColor(cfg.bg_color); localStorage.setItem("fd_bg_color", cfg.bg_color); document.body.style.background = cfg.bg_color; document.body.style.color = isLightColor(cfg.bg_color) ? "#111111" : "#f0f0f0"; }
@@ -1330,7 +1343,7 @@ export default function FlashDay() {
     if (EMAILJS_SERVICE_ID==="SEU_SERVICE_ID") return;
     const params = {
       to_email:     NOTIF_EMAIL,
-      to_name:      "Ink Station",
+      to_name:      studioName||"Ink Station",
       client_name:  bookingData.name,
       client_phone: bookingData.phone,
       client_dob:   bookingData.dob,
@@ -1575,6 +1588,18 @@ export default function FlashDay() {
     }
     setFlashLink(link); showToast("Link dos designs salvo!");
   };
+  const handleSaveStudioName = async (name)=>{
+    localStorage.setItem("fd_studio_name", name);
+    setStudioName(name);
+    document.title = name;
+    try {
+      const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
+      if (cfgRows && cfgRows.length > 0) {
+        await supabase.from("event_config").update({ studio_name:name }).eq("id", cfgRows[0].id);
+      }
+    } catch(e) {}
+    showToast("Nome do estudio salvo!");
+  };
   const handleSaveDonationConfig = async (cfg)=>{
     setDonationConfig(cfg);
     try {
@@ -1611,7 +1636,7 @@ export default function FlashDay() {
   if (loading) return (
     <div style={{ background:T.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", color:T.text }}>
       <div style={{ textAlign:"center" }}>
-        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:T.accent, letterSpacing:"0.12em", marginBottom:12 }}>INK STATION</div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:T.accent, letterSpacing:"0.12em", marginBottom:12 }}>{(studioName||"Ink Station").toUpperCase()}</div>
         <div style={{ fontSize:13, color:T.textMuted }}>Carregando...</div>
       </div>
     </div>
@@ -1633,7 +1658,7 @@ export default function FlashDay() {
       {view==="agenda" ? (
         <AgendaView event={event} slots={slots} slotStats={slotStats} getStatus={getStatus} onBook={setBookModal} flashLink={flashLink} />
       ) : !adminAuth ? (
-        <LoginScreen loginPwd={loginPwd} setLoginPwd={setLoginPwd} loginErr={loginErr} setLoginErr={setLoginErr} onLogin={handleLogin} />
+        <LoginScreen loginPwd={loginPwd} setLoginPwd={setLoginPwd} loginErr={loginErr} setLoginErr={setLoginErr} onLogin={handleLogin} studioName={studioName} />
       ) : (
         <div style={{ minHeight:"100vh" }}>
           <div style={{ display:"flex", borderBottom:`1px solid ${T.border}`, background:T.surface, padding:"0 20px", overflowX:"auto", alignItems:"center" }}>
@@ -1648,7 +1673,7 @@ export default function FlashDay() {
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} donationConfig={donationConfig} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
-          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} donationConfig={donationConfig} onSaveDonationConfig={handleSaveDonationConfig} />}
+          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} donationConfig={donationConfig} onSaveDonationConfig={handleSaveDonationConfig} studioName={studioName} onSaveStudioName={handleSaveStudioName} />}
         </div>
       )}
 
