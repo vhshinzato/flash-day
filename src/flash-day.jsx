@@ -900,7 +900,7 @@ function EditModal({ editModal, setEditModal, slots, onSave, onRequestCancel }) 
 }
 
 
-function ResumoTab({ bookings, donations, slots, event }) {
+function ResumoTab({ bookings, donations, slots, event, onExportCSV, onExportPDF, donationConfig }) {
   const done      = bookings.filter(b=>b.status==="done");
   const confirmed = bookings.filter(b=>b.status==="confirmed");
   const pending   = bookings.filter(b=>b.status==="pending");
@@ -920,9 +920,17 @@ function ResumoTab({ bookings, donations, slots, event }) {
 
   return (
     <div style={{ maxWidth:680, margin:"0 auto", padding:"24px 16px" }}>
-      <div style={{ background:`linear-gradient(135deg,${T.accent}20,${T.bg})`, border:`1px solid ${T.accent}30`, borderRadius:14, padding:"20px 24px", marginBottom:24, textAlign:"center" }}>
+      <div style={{ background:`linear-gradient(135deg,${T.accent}20,${T.bg})`, border:`1px solid ${T.accent}30`, borderRadius:14, padding:"20px 24px", marginBottom:16, textAlign:"center" }}>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:"0.1em", color:T.accent, marginBottom:4 }}>Resumo do Evento</div>
         <div style={{ fontSize:13, color:T.textMuted }}>{event.name} — {fmtDate(event.date)}</div>
+      </div>
+      <div style={{ display:"flex", gap:10, marginBottom:24 }}>
+        <button onClick={onExportCSV} style={{ ...btnP(), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          <span style={{ fontSize:16 }}>📊</span> Exportar Excel (CSV)
+        </button>
+        <button onClick={onExportPDF} style={{ ...btnS, flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          <span style={{ fontSize:16 }}>📄</span> Exportar PDF
+        </button>
       </div>
 
       <div style={{ fontSize:11, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>Sessoes</div>
@@ -946,19 +954,21 @@ function ResumoTab({ bookings, donations, slots, event }) {
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:34, color:T.accent, letterSpacing:"0.04em" }}>R$ {totalSinais + totalSessoes}</div>
       </div>
 
-      <div style={{ fontSize:11, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>Caixas de Bombom</div>
-      <div style={{ background:"#1a0e00", border:"1px solid #f9731630", borderRadius:12, padding:"20px 24px", marginBottom:20, display:"flex", alignItems:"center", gap:20 }}>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:52, color:"#f97316", letterSpacing:"0.04em", lineHeight:1 }}>{totalCaixas}</div>
-          <div style={{ fontSize:10, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginTop:4 }}>caixas doadas</div>
-        </div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:13, color:"#f97316", fontWeight:600, marginBottom:4 }}>Arrecadacao de Pascoa</div>
-          <div style={{ fontSize:12, color:T.textMuted, lineHeight:1.6 }}>
-            {donations.filter(d=>d.tipo==="cliente").reduce((a,d)=>a+Number(d.caixas),0)} de clientes + {donations.filter(d=>d.tipo==="doacao").reduce((a,d)=>a+Number(d.caixas),0)} de doacoes diretas
+      {donationConfig?.enabled && totalCaixas > 0 && (<>
+        <div style={{ fontSize:11, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>{donationConfig.itemNamePlural||"Doacoes"}</div>
+        <div style={{ background:T.accentDim, border:`1px solid ${T.accent}30`, borderRadius:12, padding:"20px 24px", marginBottom:20, display:"flex", alignItems:"center", gap:20 }}>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:52, color:T.accent, letterSpacing:"0.04em", lineHeight:1 }}>{totalCaixas}</div>
+            <div style={{ fontSize:10, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginTop:4 }}>{donationConfig.itemNamePlural||"itens"}</div>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, color:T.accent, fontWeight:600, marginBottom:4 }}>Arrecadacao do evento</div>
+            <div style={{ fontSize:12, color:T.textMuted, lineHeight:1.6 }}>
+              {donations.filter(d=>d.tipo==="cliente").reduce((a,d)=>a+Number(d.caixas),0)} de clientes + {donations.filter(d=>d.tipo==="doacao").reduce((a,d)=>a+Number(d.caixas),0)} de doacoes diretas
+            </div>
           </div>
         </div>
-      </div>
+      </>)}
 
       {totalDuracao > 0 && (
         <>
@@ -1600,6 +1610,115 @@ export default function FlashDay() {
     } catch(e) {}
     showToast("Nome do estudio salvo!");
   };
+  const buildExportData = () => {
+    const toMin = t => { const [h,m]=(t||"0:0").split(":").map(Number); return h*60+m; };
+    const sorted = [...bookings].sort((a,b)=>{ const sa=slots.find(s=>s.id===a.slotId); const sb=slots.find(s=>s.id===b.slotId); return toMin(sa?.time)-toMin(sb?.time); });
+    const confirmed = bookings.filter(b=>b.status==="confirmed"||b.status==="done");
+    const done = bookings.filter(b=>b.status==="done");
+    const totalSinais = confirmed.length * SINAL_VALOR;
+    const totalSessoes = done.reduce((a,b)=>a+Number(b.sessao?.valorCobrado||0),0);
+    const totalCaixas = donations.reduce((a,d)=>a+Number(d.caixas),0);
+    const totalDuracao = done.reduce((a,b)=>a+Number(b.sessao?.duracao||0),0);
+    const itemName = donationConfig?.itemName||"item";
+    const itemPlural = donationConfig?.itemNamePlural||"itens";
+    return { sorted, confirmed, done, totalSinais, totalSessoes, totalCaixas, totalDuracao, itemName, itemPlural };
+  };
+
+  const handleExportCSV = () => {
+    const { sorted, confirmed, done, totalSinais, totalSessoes, totalCaixas, itemPlural } = buildExportData();
+    const esc = v => { const s=String(v??""); return (s.includes(",")||s.includes('"')||s.includes("\n"))?`"${s.replace(/"/g,'""')}"`:s; };
+    const row = cols => cols.map(esc).join(",");
+    const lines = [];
+    lines.push(row([`Flash Day - ${event.name}`]));
+    lines.push(row([`Data: ${fmtDate(event.date)}  |  Local: ${event.location}`]));
+    lines.push(row([`Exportado em: ${new Date().toLocaleString("pt-BR")}`]));
+    lines.push("");
+    lines.push(row(["=== AGENDAMENTOS E SESSÕES ==="]));
+    lines.push(row(["Nome","Telefone","Horário","Status","Parte do Corpo","Sinal (R$)","Valor Sessão (R$)","Duração (min)","Agulhas","Tintas",`${itemPlural} prometidos`,`${itemPlural} recebidos`,"Observações"]));
+    sorted.forEach(b=>{
+      const slot=slots.find(s=>s.id===b.slotId);
+      const sinal=(b.status==="confirmed"||b.status==="done")?SINAL_VALOR:0;
+      lines.push(row([b.name,b.phone,slot?.time||"",STATUS_LABELS[b.status]||b.status,b.bodyPart||"",sinal,b.sessao?.valorCobrado||"",b.sessao?.duracao||"",b.sessao?.agulhas||"",b.sessao?.tintas||"",b.caixas||0,b.sessao?.caixasRecebidas||0,b.notes||(b.sessao?.obs||"")]));
+    });
+    lines.push("");
+    if (donationConfig?.enabled && donations.length>0) {
+      lines.push(row(["=== DOAÇÕES ==="]));
+      lines.push(row(["Tipo","Nome","Quantidade","Observações","Data"]));
+      donations.forEach(d=>lines.push(row([d.tipo==="cliente"?"Cliente":"Doação Direta",d.nome,d.caixas,d.obs||"",d.data?new Date(d.data).toLocaleString("pt-BR"):""])));
+      lines.push("");
+    }
+    lines.push(row(["=== RESUMO FINANCEIRO ==="]));
+    lines.push(row(["Sinais arrecadados (R$)",totalSinais]));
+    lines.push(row(["Faturado em sessões (R$)",totalSessoes]));
+    lines.push(row(["Total geral (R$)",totalSinais+totalSessoes]));
+    if (donationConfig?.enabled) lines.push(row([`Total de ${itemPlural}`,totalCaixas]));
+    lines.push(row(["Sessões realizadas",done.length]));
+    lines.push(row(["Agendamentos confirmados",confirmed.length]));
+    const blob = new Blob(["\uFEFF"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
+    const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=`flashday-${event.name.replace(/\s+/g,"-")}-${event.date}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  const handleExportPDF = () => {
+    const { sorted, confirmed, done, totalSinais, totalSessoes, totalCaixas, totalDuracao, itemPlural } = buildExportData();
+    const accent = T.accent;
+    const sessionRows = sorted.map(b=>{
+      const slot=slots.find(s=>s.id===b.slotId);
+      const sinal=(b.status==="confirmed"||b.status==="done")?`R$ ${SINAL_VALOR}`:"—";
+      return `<tr>
+        <td>${b.name}</td><td>${b.phone}</td><td>${slot?.time||"—"}</td>
+        <td>${STATUS_LABELS[b.status]||b.status}</td><td>${b.bodyPart||"—"}</td>
+        <td>${sinal}</td><td>${b.sessao?.valorCobrado?`R$ ${b.sessao.valorCobrado}`:"—"}</td>
+        <td>${b.sessao?.duracao?b.sessao.duracao+" min":"—"}</td>
+        <td>${b.sessao?.agulhas||"—"}</td><td>${b.sessao?.tintas||"—"}</td>
+        <td>${b.caixas||0}</td><td>${b.sessao?.caixasRecebidas||0}</td>
+        <td>${b.notes||b.sessao?.obs||"—"}</td>
+      </tr>`;
+    }).join("");
+    const donRows = donations.map(d=>`<tr>
+      <td>${d.tipo==="cliente"?"Cliente":"Direta"}</td><td>${d.nome}</td>
+      <td>${d.caixas}</td><td>${d.obs||"—"}</td>
+      <td>${d.data?new Date(d.data).toLocaleString("pt-BR"):"—"}</td>
+    </tr>`).join("");
+    const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+    <title>${event.name}</title><style>
+    *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}
+    h1{font-size:22px;color:${accent};letter-spacing:2px;margin-bottom:4px}
+    h2{font-size:13px;color:${accent};margin:20px 0 8px;text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid ${accent};padding-bottom:4px}
+    .sub{font-size:11px;color:#555;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:10px}
+    th{background:${accent};color:#fff;padding:5px 7px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.5px}
+    td{padding:5px 7px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#f9f9f9}
+    .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px}
+    .card{border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center}
+    .card .val{font-size:22px;font-weight:700;color:${accent}}
+    .card .lbl{font-size:9px;color:#777;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+    @media print{body{padding:12px}.no-print{display:none}}
+    </style></head><body>
+    <button class="no-print" onclick="window.print()" style="margin-bottom:16px;padding:8px 20px;background:${accent};color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Imprimir / Salvar PDF</button>
+    <h1>${event.name}</h1>
+    <div class="sub">${fmtDate(event.date)} · ${event.location} · Exportado em ${new Date().toLocaleString("pt-BR")}</div>
+    <div class="summary">
+      <div class="card"><div class="val">R$ ${totalSinais}</div><div class="lbl">Sinais</div></div>
+      <div class="card"><div class="val">R$ ${totalSessoes}</div><div class="lbl">Sessões</div></div>
+      <div class="card"><div class="val">R$ ${totalSinais+totalSessoes}</div><div class="lbl">Total</div></div>
+      <div class="card"><div class="val">${done.length}</div><div class="lbl">Realizadas</div></div>
+      <div class="card"><div class="val">${confirmed.length}</div><div class="lbl">Confirmadas</div></div>
+      ${donationConfig?.enabled?`<div class="card"><div class="val">${totalCaixas}</div><div class="lbl">${itemPlural}</div></div>`:""}
+      ${totalDuracao>0?`<div class="card"><div class="val">${Math.floor(totalDuracao/60)}h${totalDuracao%60}min</div><div class="lbl">Tempo total</div></div>`:""}
+    </div>
+    <h2>Agendamentos e Sessões</h2>
+    <table><thead><tr><th>Nome</th><th>Telefone</th><th>Horário</th><th>Status</th><th>Local</th><th>Sinal</th><th>Sessão</th><th>Duração</th><th>Agulhas</th><th>Tintas</th><th>Prom.</th><th>Rec.</th><th>Obs.</th></tr></thead>
+    <tbody>${sessionRows}</tbody></table>
+    ${donationConfig?.enabled&&donations.length>0?`<h2>${itemPlural}</h2>
+    <table><thead><tr><th>Tipo</th><th>Nome</th><th>Qtd</th><th>Observações</th><th>Data</th></tr></thead>
+    <tbody>${donRows}</tbody></table>`:""}
+    </body></html>`;
+    const w=window.open("","_blank","width=1100,height=800");
+    w.document.write(html); w.document.close();
+  };
+
   const handleSaveDonationConfig = async (cfg)=>{
     setDonationConfig(cfg);
     try {
@@ -1675,7 +1794,7 @@ export default function FlashDay() {
           </div>
           {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} donationConfig={donationConfig} />}
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} donationConfig={donationConfig} />}
-          {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
+          {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} donationConfig={donationConfig} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
           {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} donationConfig={donationConfig} onSaveDonationConfig={handleSaveDonationConfig} studioName={studioName} onSaveStudioName={handleSaveStudioName} />}
         </div>
