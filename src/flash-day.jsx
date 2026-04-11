@@ -89,7 +89,7 @@ function genPixPayload(pixConfig, valor) {
     tlv("60","SAO BERNARDO") + additional + "6304";
   return payload + crc16(payload).toString(16).toUpperCase().padStart(4,"0");
 }
-function genCalendarUrl(event, time, name, bodyPart) {
+function genCalendarUrl(event, time, name, bodyPart, bodyPartLabel) {
   if (!event.date) return null;
   const [y,m,d] = event.date.split("-");
   const [hh,mm] = time.split(":");
@@ -98,7 +98,7 @@ function genCalendarUrl(event, time, name, bodyPart) {
   const endH = String(parseInt(hh)+(parseInt(mm)+60>=60?1:0)).padStart(2,"0");
   const endM = String((parseInt(mm)+60)%60).padStart(2,"0");
   const end = `${y}${pad(m)}${pad(d)}T${endH}${endM}00`;
-  const details = encodeURIComponent(["Nome: "+name, bodyPart?"Tatuagem: "+bodyPart:"", event.name].filter(Boolean).join("\n"));
+  const details = encodeURIComponent(["Nome: "+name, bodyPart?(bodyPartLabel||"Info")+": "+bodyPart:"", event.name].filter(Boolean).join("\n"));
   return "https://calendar.google.com/calendar/render?action=TEMPLATE" +
     "&text=" + encodeURIComponent(event.name) +
     "&dates=" + start + "/" + end +
@@ -111,6 +111,19 @@ const INIT_SLOTS = genSlots("10:00","20:00",30);
 const INIT_BOOKINGS = [];
 const INIT_PIX = { key:"", keyType:"cpf", holderName:"", bank:"" };
 const INIT_DONATIONS = []; // { id, tipo:"cliente"|"doacao", nome, caixas, data, obs, bookingId? }
+const DEFAULT_FIELDS_CONFIG = {
+  bodyPartEnabled: true,
+  bodyPartLabel: "Parte do corpo",
+  bodyPartPlaceholder: "Ex: Braco, Costas...",
+  field1Enabled: true,
+  field1Label: "Agulhas",
+  field1Placeholder: "Ex: 1x RL5, 1x M7",
+  field2Enabled: true,
+  field2Label: "Tintas / cores",
+  field2Placeholder: "Ex: Preto, Cinza, Branco",
+  sessionLabel: "Sessao",
+};
+
 const DEFAULT_DONATION_CONFIG = {
   enabled: true,
   itemName: "caixa de bombom",
@@ -328,7 +341,7 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook, flashLink }) {
   );
 }
 
-function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, sortBy, setSortBy, onEdit, onConfirm, onConcluir, onReminder, onDelete, donationConfig }) {
+function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, sortBy, setSortBy, onEdit, onConfirm, onConcluir, onReminder, onDelete, donationConfig, fieldsConfig }) {
   return (
     <div style={{ maxWidth:820, margin:"0 auto", padding:"24px 16px" }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
@@ -377,7 +390,7 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
               <div style={{ fontSize:12, color:T.textMuted, display:"flex", gap:12, flexWrap:"wrap" }}>
                 <span>{b.phone}</span>
                 {slot && <span style={{ color:T.accent }}>Hora: {slot.time}</span>}
-                {b.bodyPart && <span style={{ color:T.textMuted }}>Local: {b.bodyPart}</span>}
+                {(fieldsConfig?.bodyPartEnabled??true) && b.bodyPart && <span style={{ color:T.textMuted }}>{fieldsConfig?.bodyPartLabel||"Local"}: {b.bodyPart}</span>}
                 {donationConfig?.enabled && b.caixas>0 && <span style={{ color:T.accent }}>{donationConfig.itemNamePlural||"itens"}: {b.caixas}</span>}
               </div>
               {b.notes && <div style={{ fontSize:12, color:T.textDim, marginTop:3, fontStyle:"italic" }}>"{b.notes}"</div>}
@@ -385,8 +398,8 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
                 <div style={{ display:"flex", gap:10, marginTop:4, flexWrap:"wrap" }}>
                   {b.sessao.valorCobrado && <span style={{ fontSize:11, background:"#0d2618", color:T.green, borderRadius:100, padding:"2px 8px" }}>R$ {b.sessao.valorCobrado}</span>}
                   {b.sessao.duracao && <span style={{ fontSize:11, background:T.surface3, color:T.textMuted, borderRadius:100, padding:"2px 8px" }}>{b.sessao.duracao} min</span>}
-                  {b.sessao.agulhas && <span style={{ fontSize:11, background:T.surface3, color:T.textMuted, borderRadius:100, padding:"2px 8px" }}>Agulhas: {b.sessao.agulhas}</span>}
-                  {b.sessao.tintas && <span style={{ fontSize:11, background:T.surface3, color:T.textMuted, borderRadius:100, padding:"2px 8px" }}>Tintas: {b.sessao.tintas}</span>}
+                  {(fieldsConfig?.field1Enabled??true) && b.sessao.agulhas && <span style={{ fontSize:11, background:T.surface3, color:T.textMuted, borderRadius:100, padding:"2px 8px" }}>{fieldsConfig?.field1Label||"Agulhas"}: {b.sessao.agulhas}</span>}
+                  {(fieldsConfig?.field2Enabled??true) && b.sessao.tintas && <span style={{ fontSize:11, background:T.surface3, color:T.textMuted, borderRadius:100, padding:"2px 8px" }}>{fieldsConfig?.field2Label||"Tintas"}: {b.sessao.tintas}</span>}
                 </div>
               )}
             </div>
@@ -479,13 +492,14 @@ const BG_PRESETS = [
   { label:"Marrom",      value:"#150c06" },
 ];
 
-function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors, donationConfig, onSaveDonationConfig, studioName, onSaveStudioName }) {
+function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors, donationConfig, onSaveDonationConfig, studioName, onSaveStudioName, fieldsConfig, onSaveFieldsConfig }) {
   const [localFlashLink, setLocalFlashLink] = useState(flashLink);
   const [localStudioName, setLocalStudioName] = useState(studioName);
   const [pix, setPix] = useState({...pixConfig});
   const [localAccent, setLocalAccent] = useState(accentColor);
   const [localBg, setLocalBg] = useState(bgColor);
   const [localDonation, setLocalDonation] = useState(()=>({...donationConfig, tiers:[...donationConfig.tiers.map(t=>({...t}))]}));
+  const [localFields, setLocalFields] = useState(()=>({...DEFAULT_FIELDS_CONFIG,...fieldsConfig}));
   const preview = useMemo(()=>genSlots(settingsForm.startTime,settingsForm.endTime,settingsForm.interval),[settingsForm.startTime,settingsForm.endTime,settingsForm.interval]);
   return (
     <div style={{ maxWidth:580, margin:"0 auto", padding:"24px 16px" }}>
@@ -699,6 +713,42 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
       </div>
 
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24 }}>
+        <div style={{ fontSize:12, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4 }}>Campos do Formulário</div>
+        <div style={{ fontSize:12, color:T.textDim, marginBottom:18 }}>Personalize os campos exibidos no agendamento e no encerramento do atendimento.</div>
+        <div style={{ marginBottom:16 }}>
+          <label style={lbl}>Como chamar o atendimento</label>
+          <input type="text" placeholder="Ex: Sessao, Consulta, Corte..." value={localFields.sessionLabel} onChange={e=>setLocalFields(p=>({...p,sessionLabel:e.target.value}))} style={inp} />
+          <div style={{ fontSize:11, color:T.textDim, marginTop:4 }}>Aparece nos botoes e titulos do sistema.</div>
+        </div>
+        {[
+          {key:"bodyPart", labelKey:"bodyPartLabel", phKey:"bodyPartPlaceholder", enabledKey:"bodyPartEnabled", defaultLabel:"Parte do corpo", defaultPh:"Ex: Braco, Costas..."},
+          {key:"field1", labelKey:"field1Label", phKey:"field1Placeholder", enabledKey:"field1Enabled", defaultLabel:"Campo extra 1 (ex: Agulhas)", defaultPh:"Ex: 1x RL5, 1x M7"},
+          {key:"field2", labelKey:"field2Label", phKey:"field2Placeholder", enabledKey:"field2Enabled", defaultLabel:"Campo extra 2 (ex: Tintas)", defaultPh:"Ex: Preto, Cinza, Branco"},
+        ].map(f=>(
+          <div key={f.key} style={{ background:T.surface3, borderRadius:10, padding:"14px 16px", marginBottom:12 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:localFields[f.enabledKey]?12:0 }}>
+              <span style={{ fontSize:13, color:T.text, fontWeight:500 }}>{localFields[f.labelKey]||f.defaultLabel}</span>
+              <button type="button" onClick={()=>setLocalFields(p=>({...p,[f.enabledKey]:!p[f.enabledKey]}))}
+                style={{ background:localFields[f.enabledKey]?T.accentDim:T.surface2, border:`1px solid ${localFields[f.enabledKey]?T.accent:T.border2}`, borderRadius:100, padding:"3px 14px", fontSize:11, fontWeight:600, color:localFields[f.enabledKey]?T.accent:T.textMuted, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                {localFields[f.enabledKey]?"Ativo":"Desativado"}
+              </button>
+            </div>
+            {localFields[f.enabledKey] && (<>
+              <div style={{ marginBottom:8 }}>
+                <label style={lbl}>Label do campo</label>
+                <input type="text" placeholder={f.defaultLabel} value={localFields[f.labelKey]} onChange={e=>setLocalFields(p=>({...p,[f.labelKey]:e.target.value}))} style={inp} />
+              </div>
+              <div>
+                <label style={lbl}>Placeholder (texto de exemplo)</label>
+                <input type="text" placeholder={f.defaultPh} value={localFields[f.phKey]} onChange={e=>setLocalFields(p=>({...p,[f.phKey]:e.target.value}))} style={inp} />
+              </div>
+            </>)}
+          </div>
+        ))}
+        <button onClick={()=>onSaveFieldsConfig(localFields)} style={{ ...btnP(), width:"100%" }}>Salvar campos</button>
+      </div>
+
+      <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24 }}>
         <div style={{ fontSize:12, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:18 }}>Alterar Senha de Admin</div>
         {[{k:"current",label:"Senha atual",ph:"Digite a senha atual"},{k:"newPwd",label:"Nova senha",ph:"Minimo 6 caracteres"},{k:"confirm",label:"Confirmar nova senha",ph:"Repita a nova senha"}].map(f=>(
           <div key={f.k} style={{ marginBottom:12 }}>
@@ -713,7 +763,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
   );
 }
 
-function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, event, isSubmitting, donationConfig }) {
+function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, event, isSubmitting, donationConfig, fieldsConfig }) {
   if (!bookModal) return null;
   const maxDob = new Date(new Date().setFullYear(new Date().getFullYear()-18)).toISOString().split("T")[0];
   return (
@@ -736,24 +786,12 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
             <label style={lbl}>Data de nascimento * (necessario ter 18+)</label>
             <input type="date" value={bookForm.dob} max={maxDob} onChange={e=>setBookForm(p=>({...p,dob:e.target.value}))} style={inp} />
           </div>
+          {(fieldsConfig?.bodyPartEnabled ?? true) && (
           <div style={{ marginBottom:14 }}>
-            <label style={lbl}>Parte do corpo</label>
-            <select value={bookForm.bodyPart} onChange={e=>setBookForm(p=>({...p,bodyPart:e.target.value}))} style={inp}>
-              <option value="">Selecione...</option>
-              <option value="Braco (superior)">Braco (superior)</option>
-              <option value="Braco (inferior / antebrace)">Braco (inferior / antebrace)</option>
-              <option value="Punho / mao">Punho / mao</option>
-              <option value="Perna (superior / coxa)">Perna (superior / coxa)</option>
-              <option value="Perna (inferior / panturrilha)">Perna (inferior / panturrilha)</option>
-              <option value="Pe / tornozelo">Pe / tornozelo</option>
-              <option value="Peito / clavícula">Peito / clavicula</option>
-              <option value="Costas">Costas</option>
-              <option value="Costela / lateral">Costela / lateral</option>
-              <option value="Pescoco">Pescoco</option>
-              <option value="Cabeca">Cabeca</option>
-              <option value="Outro">Outro</option>
-            </select>
+            <label style={lbl}>{fieldsConfig?.bodyPartLabel||"Parte do corpo"}</label>
+            <input type="text" placeholder={fieldsConfig?.bodyPartPlaceholder||"Ex: Braco, Costas..."} value={bookForm.bodyPart} onChange={e=>setBookForm(p=>({...p,bodyPart:e.target.value}))} style={inp} />
           </div>
+          )}
           {donationConfig?.enabled && donationConfig.tiers?.length > 0 && (
             <div style={{ marginBottom:18 }}>
               <label style={lbl}>{donationConfig.itemNamePlural || "itens de doacao"}</label>
@@ -841,8 +879,8 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
           <div style={{ background:"#1e1400", border:`1px solid ${T.amberDim}`, borderRadius:8, padding:"10px 14px", marginBottom:16, fontSize:12, color:T.amber, lineHeight:1.6 }}>
             O agendamento ficara como Aguardando sinal ate a confirmacao do pagamento pela equipe.
           </div>
-          {genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart) && (
-            <a href={genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart)} target="_blank" rel="noopener noreferrer"
+          {genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart, fieldsConfig?.bodyPartLabel) && (
+            <a href={genCalendarUrl(event, bookModal.time, bookForm.name, bookForm.bodyPart, fieldsConfig?.bodyPartLabel)} target="_blank" rel="noopener noreferrer"
               style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"#0d1a2e", border:`1px solid #3b82f680`, borderRadius:10, padding:"14px 18px", color:"#60a5fa", fontSize:14, fontWeight:600, textDecoration:"none", marginBottom:16, letterSpacing:"0.02em" }}>
               <span style={{ fontSize:20 }}>📅</span>
               <div>
@@ -859,7 +897,7 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
   );
 }
 
-function EditModal({ editModal, setEditModal, slots, onSave, onRequestCancel }) {
+function EditModal({ editModal, setEditModal, slots, onSave, onRequestCancel, fieldsConfig }) {
   if (!editModal) return null;
   const slot = slots.find(s=>s.id===editModal.slotId);
   return (
@@ -878,24 +916,12 @@ function EditModal({ editModal, setEditModal, slots, onSave, onRequestCancel }) 
           <input type={f.type} value={editModal[f.k]||""} onChange={e=>setEditModal(m=>({...m,[f.k]:e.target.value}))} style={inp} />
         </div>
       ))}
+      {(fieldsConfig?.bodyPartEnabled??true) && (
       <div style={{ marginBottom:12 }}>
-        <label style={lbl}>Parte do corpo</label>
-        <select value={editModal.bodyPart||""} onChange={e=>setEditModal(m=>({...m,bodyPart:e.target.value}))} style={inp}>
-          <option value="">Nao informado</option>
-          <option value="Braco (superior)">Braco (superior)</option>
-          <option value="Braco (inferior / antebrace)">Braco (inferior / antebrace)</option>
-          <option value="Punho / mao">Punho / mao</option>
-          <option value="Perna (superior / coxa)">Perna (superior / coxa)</option>
-          <option value="Perna (inferior / panturrilha)">Perna (inferior / panturrilha)</option>
-          <option value="Pe / tornozelo">Pe / tornozelo</option>
-          <option value="Peito / clavicula">Peito / clavicula</option>
-          <option value="Costas">Costas</option>
-          <option value="Costela / lateral">Costela / lateral</option>
-          <option value="Pescoco">Pescoco</option>
-          <option value="Cabeca">Cabeca</option>
-          <option value="Outro">Outro</option>
-        </select>
+        <label style={lbl}>{fieldsConfig?.bodyPartLabel||"Parte do corpo"}</label>
+        <input type="text" placeholder={fieldsConfig?.bodyPartPlaceholder||"Ex: Braco, Costas..."} value={editModal.bodyPart||""} onChange={e=>setEditModal(m=>({...m,bodyPart:e.target.value}))} style={inp} />
       </div>
+      )}
       <div style={{ marginBottom:12 }}>
         <label style={lbl}>Status</label>
         <select value={editModal.status} onChange={e=>setEditModal(m=>({...m,status:e.target.value}))} style={inp}>
@@ -1073,17 +1099,18 @@ function DoacoesTab({ donations, onAddDonation, bookings, donationConfig }) {
 }
 
 
-function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave, onClose, isEdit, donationConfig }) {
+function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave, onClose, isEdit, donationConfig, fieldsConfig }) {
   if (!sessionModal) return null;
+  const fc = {...DEFAULT_FIELDS_CONFIG, ...fieldsConfig};
   const slot = slots.find(s=>s.id===sessionModal.slotId);
   return (
     <Overlay onClose={onClose}>
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontSize:10, color:"#60a5fa", letterSpacing:"0.18em", marginBottom:4, textTransform:"uppercase" }}>{isEdit ? "Editar sessao" : "Concluir sessao"}</div>
+        <div style={{ fontSize:10, color:"#60a5fa", letterSpacing:"0.18em", marginBottom:4, textTransform:"uppercase" }}>{isEdit ? `Editar ${fc.sessionLabel}` : `Concluir ${fc.sessionLabel}`}</div>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:"0.04em", lineHeight:1 }}>{sessionModal.name}</div>
         <div style={{ fontSize:12, color:T.textMuted, marginTop:4, display:"flex", gap:12 }}>
           {slot && <span>Horario: {slot.time}</span>}
-          {sessionModal.bodyPart && <span>Local: {sessionModal.bodyPart}</span>}
+          {fc.bodyPartEnabled && sessionModal.bodyPart && <span>{fc.bodyPartLabel}: {sessionModal.bodyPart}</span>}
         </div>
       </div>
 
@@ -1134,20 +1161,22 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
         </div>
       </div>
 
+      {(fc.field1Enabled || fc.field2Enabled) && (
       <div style={{ background:T.surface3, borderRadius:10, padding:"14px 16px", marginBottom:18 }}>
-        <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>Materiais utilizados</div>
-        <div style={{ marginBottom:14 }}>
-          <label style={lbl}>Agulhas</label>
-          <input type="text" placeholder="Ex: 1x RL5, 1x M7" value={sessionForm.agulhas} onChange={e=>setSessionForm(p=>({...p,agulhas:e.target.value}))} style={inp} />
-        </div>
-        <div style={{ marginBottom:4 }}>
-          <label style={lbl}>Tintas / cores</label>
-          <input type="text" placeholder="Ex: Preto, Cinza, Branco" value={sessionForm.tintas} onChange={e=>setSessionForm(p=>({...p,tintas:e.target.value}))} style={inp} />
-        </div>
+        <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>Informacoes adicionais</div>
+        {fc.field1Enabled && <div style={{ marginBottom:fc.field2Enabled?14:4 }}>
+          <label style={lbl}>{fc.field1Label}</label>
+          <input type="text" placeholder={fc.field1Placeholder} value={sessionForm.agulhas} onChange={e=>setSessionForm(p=>({...p,agulhas:e.target.value}))} style={inp} />
+        </div>}
+        {fc.field2Enabled && <div style={{ marginBottom:4 }}>
+          <label style={lbl}>{fc.field2Label}</label>
+          <input type="text" placeholder={fc.field2Placeholder} value={sessionForm.tintas} onChange={e=>setSessionForm(p=>({...p,tintas:e.target.value}))} style={inp} />
+        </div>}
       </div>
+      )}
 
       <div style={{ marginBottom:22 }}>
-        <label style={lbl}>Observacoes da sessao</label>
+        <label style={lbl}>Observacoes do {fc.sessionLabel.toLowerCase()}</label>
         <textarea placeholder="Como foi a sessao, retoque necessario, etc..." value={sessionForm.obs} onChange={e=>setSessionForm(p=>({...p,obs:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
       </div>
 
@@ -1156,6 +1185,7 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
           O agendamento sera marcado como <strong>Realizado</strong> ao salvar.
         </div>
       )}
+
 
       <div style={{ display:"flex", gap:10 }}>
         <button onClick={onClose} style={{ ...btnS, flex:1 }}>Cancelar</button>
@@ -1201,6 +1231,7 @@ export default function FlashDay() {
   const [flashLink, setFlashLink] = useState("");
   const [studioName, setStudioName] = useState(()=>localStorage.getItem("fd_studio_name")||"Ink Station");
   const [donationConfig, setDonationConfig] = useState(DEFAULT_DONATION_CONFIG);
+  const [fieldsConfig, setFieldsConfig] = useState(DEFAULT_FIELDS_CONFIG);
   const [accentColor, setAccentColor] = useState(()=>localStorage.getItem("fd_accent_color")||"#e63946");
   const [bgColor, setBgColor] = useState(()=>localStorage.getItem("fd_bg_color")||"#080808");
   T.accent = accentColor;
@@ -1260,6 +1291,7 @@ export default function FlashDay() {
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
         if (cfg.studio_name) { setStudioName(cfg.studio_name); localStorage.setItem("fd_studio_name", cfg.studio_name); document.title = cfg.studio_name; }
         if (cfg.donation_config) setDonationConfig(cfg.donation_config);
+        if (cfg.fields_config) setFieldsConfig(c=>({...DEFAULT_FIELDS_CONFIG,...cfg.fields_config}));
         if (cfg.accent_color) { setAccentColor(cfg.accent_color); localStorage.setItem("fd_accent_color", cfg.accent_color); }
         if (cfg.bg_color) { setBgColor(cfg.bg_color); localStorage.setItem("fd_bg_color", cfg.bg_color); document.body.style.background = cfg.bg_color; document.body.style.color = isLightColor(cfg.bg_color) ? "#111111" : "#f0f0f0"; }
         if (cfg.admin_password) {
@@ -1468,12 +1500,11 @@ export default function FlashDay() {
       "Data: " + eventDate,
       "Horario: " + slot.time,
       "Local: " + event.location,
-      booking.bodyPart ? "Tatuagem: " + booking.bodyPart : "",
+      (fieldsConfig.bodyPartEnabled && booking.bodyPart) ? (fieldsConfig.bodyPartLabel||"Info") + ": " + booking.bodyPart : "",
       "",
       "Lembre-se de:",
       "- Chegar com 10 min de antecedencia",
       "- Estar bem alimentado(a)",
-      "- Usar roupa que facilite o acesso ao local da tatuagem",
       booking.caixas>0 && donationConfig?.enabled ? "- Trazer " + booking.caixas + " " + (booking.caixas===1?(donationConfig.itemName||"item"):(donationConfig.itemNamePlural||"itens")) + " para o beneficio!" : "",
       "",
       "Te esperamos! Em caso de duvidas, estamos a disposicao.",
@@ -1629,6 +1660,16 @@ export default function FlashDay() {
     } catch(e) {}
     showToast("Nome do estudio salvo!");
   };
+  const handleSaveFieldsConfig = async (cfg)=>{
+    setFieldsConfig(cfg);
+    try {
+      const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
+      if (cfgRows && cfgRows.length > 0) {
+        await supabase.from("event_config").update({ fields_config:cfg }).eq("id", cfgRows[0].id);
+      }
+    } catch(e) {}
+    showToast("Campos salvos!");
+  };
   const buildExportData = () => {
     const toMin = t => { const [h,m]=(t||"0:0").split(":").map(Number); return h*60+m; };
     const sorted = [...bookings].sort((a,b)=>{ const sa=slots.find(s=>s.id===a.slotId); const sb=slots.find(s=>s.id===b.slotId); return toMin(sa?.time)-toMin(sb?.time); });
@@ -1648,11 +1689,12 @@ export default function FlashDay() {
     const esc = v => String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     const th = v => `<td style="border:1px solid #999;padding:5px 8px;background:#222;color:#fff;font-weight:bold;white-space:nowrap;">${esc(v)}</td>`;
     const td = (v,bold) => `<td style="border:1px solid #ddd;padding:5px 8px;${bold?"font-weight:bold;background:#f5f5f5;":""}">${esc(v)}</td>`;
-    const sHdr = ["Nome","Telefone","Horário","Status","Parte do Corpo","Sinal (R$)","Valor Sessão (R$)","Duração (min)","Agulhas","Tintas",`${itemPlural} prometidos`,`${itemPlural} recebidos`,"Observações"];
+    const fc = {...DEFAULT_FIELDS_CONFIG,...fieldsConfig};
+    const sHdr = ["Nome","Telefone","Horário","Status",...(fc.bodyPartEnabled?[fc.bodyPartLabel]:[]),"Sinal (R$)",`Valor ${fc.sessionLabel} (R$)`,"Duração (min)",...(fc.field1Enabled?[fc.field1Label]:[]),...(fc.field2Enabled?[fc.field2Label]:[]),...(donationConfig?.enabled?[`${itemPlural} prometidos`,`${itemPlural} recebidos`]:[]),"Observações"];
     const sRows = sorted.map(b=>{
       const slot=slots.find(s=>s.id===b.slotId);
       const sinal=(b.status==="confirmed"||b.status==="done")?SINAL_VALOR:0;
-      return [b.name,b.phone,slot?.time||"",STATUS_LABELS[b.status]||b.status,b.bodyPart||"",sinal,b.sessao?.valorCobrado||"",b.sessao?.duracao||"",b.sessao?.agulhas||"",b.sessao?.tintas||"",b.caixas||0,b.sessao?.caixasRecebidas||0,b.notes||(b.sessao?.obs||"")];
+      return [b.name,b.phone,slot?.time||"",STATUS_LABELS[b.status]||b.status,...(fc.bodyPartEnabled?[b.bodyPart||""]:[]),sinal,b.sessao?.valorCobrado||"",b.sessao?.duracao||"",...(fc.field1Enabled?[b.sessao?.agulhas||""]:[]),...(fc.field2Enabled?[b.sessao?.tintas||""]:[]),...(donationConfig?.enabled?[b.caixas||0,b.sessao?.caixasRecebidas||0]:[]),b.notes||(b.sessao?.obs||"")];
     });
     const col = sHdr.length;
     let h = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;}table{border-collapse:collapse;margin-bottom:20px;}h2{margin:16px 0 6px;font-size:14px;}</style></head><body>`;
@@ -1680,16 +1722,17 @@ export default function FlashDay() {
   const handleExportPDF = () => {
     const { sorted, confirmed, done, totalSinais, totalSessoes, totalCaixas, totalDuracao, itemPlural } = buildExportData();
     const accent = T.accent;
+    const fc = {...DEFAULT_FIELDS_CONFIG,...fieldsConfig};
     const sessionRows = sorted.map(b=>{
       const slot=slots.find(s=>s.id===b.slotId);
       const sinal=(b.status==="confirmed"||b.status==="done")?`R$ ${SINAL_VALOR}`:"—";
       return `<tr>
         <td>${b.name}</td><td>${b.phone}</td><td>${slot?.time||"—"}</td>
-        <td>${STATUS_LABELS[b.status]||b.status}</td><td>${b.bodyPart||"—"}</td>
+        <td>${STATUS_LABELS[b.status]||b.status}</td>${fc.bodyPartEnabled?`<td>${b.bodyPart||"—"}</td>`:""}
         <td>${sinal}</td><td>${b.sessao?.valorCobrado?`R$ ${b.sessao.valorCobrado}`:"—"}</td>
         <td>${b.sessao?.duracao?b.sessao.duracao+" min":"—"}</td>
-        <td>${b.sessao?.agulhas||"—"}</td><td>${b.sessao?.tintas||"—"}</td>
-        <td>${b.caixas||0}</td><td>${b.sessao?.caixasRecebidas||0}</td>
+        ${fc.field1Enabled?`<td>${b.sessao?.agulhas||"—"}</td>`:""}${fc.field2Enabled?`<td>${b.sessao?.tintas||"—"}</td>`:""}
+        ${donationConfig?.enabled?`<td>${b.caixas||0}</td><td>${b.sessao?.caixasRecebidas||0}</td>`:""}
         <td>${b.notes||b.sessao?.obs||"—"}</td>
       </tr>`;
     }).join("");
@@ -1725,8 +1768,8 @@ export default function FlashDay() {
       ${donationConfig?.enabled?`<div class="card"><div class="val">${totalCaixas}</div><div class="lbl">${itemPlural}</div></div>`:""}
       ${totalDuracao>0?`<div class="card"><div class="val">${Math.floor(totalDuracao/60)}h${totalDuracao%60}min</div><div class="lbl">Tempo total</div></div>`:""}
     </div>
-    <h2>Agendamentos e Sessões</h2>
-    <table><thead><tr><th>Nome</th><th>Telefone</th><th>Horário</th><th>Status</th><th>Local</th><th>Sinal</th><th>Sessão</th><th>Duração</th><th>Agulhas</th><th>Tintas</th><th>Prom.</th><th>Rec.</th><th>Obs.</th></tr></thead>
+    <h2>Agendamentos e ${fc.sessionLabel}s</h2>
+    <table><thead><tr><th>Nome</th><th>Telefone</th><th>Horário</th><th>Status</th>${fc.bodyPartEnabled?`<th>${fc.bodyPartLabel}</th>`:""}<th>Sinal</th><th>${fc.sessionLabel}</th><th>Duração</th>${fc.field1Enabled?`<th>${fc.field1Label}</th>`:""}${fc.field2Enabled?`<th>${fc.field2Label}</th>`:""}${donationConfig?.enabled?`<th>Prom.</th><th>Rec.</th>`:""}<th>Obs.</th></tr></thead>
     <tbody>${sessionRows}</tbody></table>
     ${donationConfig?.enabled&&donations.length>0?`<h2>${itemPlural}</h2>
     <table><thead><tr><th>Tipo</th><th>Nome</th><th>Qtd</th><th>Observações</th><th>Data</th></tr></thead>
@@ -1809,16 +1852,16 @@ export default function FlashDay() {
             </div>
             <button onClick={()=>{localStorage.removeItem("fd_admin_session");setAdminAuth(false);setView("agenda");}} style={{ background:"transparent", border:"none", color:T.textDim, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:"0 4px", flexShrink:0 }}>Sair</button>
           </div>
-          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} donationConfig={donationConfig} />}
+          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} donationConfig={donationConfig} fieldsConfig={fieldsConfig} />}
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} donationConfig={donationConfig} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} donationConfig={donationConfig} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
-          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} donationConfig={donationConfig} onSaveDonationConfig={handleSaveDonationConfig} studioName={studioName} onSaveStudioName={handleSaveStudioName} />}
+          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} donationConfig={donationConfig} onSaveDonationConfig={handleSaveDonationConfig} studioName={studioName} onSaveStudioName={handleSaveStudioName} fieldsConfig={fieldsConfig} onSaveFieldsConfig={handleSaveFieldsConfig} />}
         </div>
       )}
 
-      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} event={event} isSubmitting={isSubmitting} donationConfig={donationConfig} />
-      <EditModal editModal={editModal} setEditModal={setEditModal} slots={slots} onSave={handleSaveEdit} onRequestCancel={()=>setConfirmId(editModal.id)} />
+      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} event={event} isSubmitting={isSubmitting} donationConfig={donationConfig} fieldsConfig={fieldsConfig} />
+      <EditModal editModal={editModal} setEditModal={setEditModal} slots={slots} onSave={handleSaveEdit} onRequestCancel={()=>setConfirmId(editModal.id)} fieldsConfig={fieldsConfig} />
 
       {donationModal && (
         <Overlay onClose={()=>setDonationModal(false)}>
@@ -1844,7 +1887,7 @@ export default function FlashDay() {
           </div>
         </Overlay>
       )}
-      <SessionModal sessionModal={sessionModal} sessionForm={sessionForm} setSessionForm={setSessionForm} slots={slots} onSave={handleSaveSession} onClose={()=>setSessionModal(null)} isEdit={isEditSession} donationConfig={donationConfig} />
+      <SessionModal sessionModal={sessionModal} sessionForm={sessionForm} setSessionForm={setSessionForm} slots={slots} onSave={handleSaveSession} onClose={()=>setSessionModal(null)} isEdit={isEditSession} donationConfig={donationConfig} fieldsConfig={fieldsConfig} />
 
       {confirmId && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.92)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
