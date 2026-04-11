@@ -111,6 +111,15 @@ const INIT_SLOTS = genSlots("10:00","20:00",30);
 const INIT_BOOKINGS = [];
 const INIT_PIX = { key:"", keyType:"cpf", holderName:"", bank:"" };
 const INIT_DONATIONS = []; // { id, tipo:"cliente"|"doacao", nome, caixas, data, obs, bookingId? }
+const DEFAULT_DONATION_CONFIG = {
+  enabled: true,
+  itemName: "caixa de bombom",
+  itemNamePlural: "caixas de bombom",
+  tiers: [
+    { qty: 1, benefit: "2º flash até R$150" },
+    { qty: 2, benefit: "2º flash até R$300" },
+  ],
+};
 
 function Chip({ status }) {
   const cfg = {
@@ -300,7 +309,7 @@ function AgendaView({ event, slots, slotStats, getStatus, onBook, flashLink }) {
   );
 }
 
-function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, sortBy, setSortBy, onEdit, onConfirm, onConcluir, onReminder, onDelete }) {
+function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filterSt, setFilterSt, sortBy, setSortBy, onEdit, onConfirm, onConcluir, onReminder, onDelete, donationConfig }) {
   return (
     <div style={{ maxWidth:820, margin:"0 auto", padding:"24px 16px" }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:10 }}>
@@ -350,7 +359,7 @@ function BookingsTab({ gStats, filteredBookings, slots, search, setSearch, filte
                 <span>{b.phone}</span>
                 {slot && <span style={{ color:T.accent }}>Hora: {slot.time}</span>}
                 {b.bodyPart && <span style={{ color:T.textMuted }}>Local: {b.bodyPart}</span>}
-                {b.caixas>0 && <span style={{ color:"#f97316" }}>Caixas: {b.caixas}</span>}
+                {donationConfig?.enabled && b.caixas>0 && <span style={{ color:T.accent }}>{donationConfig.itemNamePlural||"itens"}: {b.caixas}</span>}
               </div>
               {b.notes && <div style={{ fontSize:12, color:T.textDim, marginTop:3, fontStyle:"italic" }}>"{b.notes}"</div>}
               {b.sessao && (
@@ -451,11 +460,12 @@ const BG_PRESETS = [
   { label:"Marrom",      value:"#150c06" },
 ];
 
-function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors }) {
+function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdErr, setPwdErr, onSaveEvent, onSavePwd, pixConfig, onSavePix, flashLink, onSaveFlashLink, savedTemplate, onSaveTemplate, onLoadTemplate, accentColor, bgColor, onSaveColors, donationConfig, onSaveDonationConfig }) {
   const [localFlashLink, setLocalFlashLink] = useState(flashLink);
   const [pix, setPix] = useState({...pixConfig});
   const [localAccent, setLocalAccent] = useState(accentColor);
   const [localBg, setLocalBg] = useState(bgColor);
+  const [localDonation, setLocalDonation] = useState(()=>({...donationConfig, tiers:[...donationConfig.tiers.map(t=>({...t}))]}));
   const preview = useMemo(()=>genSlots(settingsForm.startTime,settingsForm.endTime,settingsForm.interval),[settingsForm.startTime,settingsForm.endTime,settingsForm.interval]);
   return (
     <div style={{ maxWidth:580, margin:"0 auto", padding:"24px 16px" }}>
@@ -554,6 +564,54 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
       </div>
 
       <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+          <div style={{ fontSize:12, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase" }}>Campanha de Doacao</div>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <span style={{ fontSize:12, color:T.textMuted }}>Ativar</span>
+            <div onClick={()=>setLocalDonation(p=>({...p,enabled:!p.enabled}))} style={{ width:40, height:22, borderRadius:100, background:localDonation.enabled?T.accent:T.border2, position:"relative", cursor:"pointer", transition:"background .2s" }}>
+              <div style={{ position:"absolute", top:3, left:localDonation.enabled?20:3, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }} />
+            </div>
+          </label>
+        </div>
+        {localDonation.enabled && (<>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:14 }}>
+            <div>
+              <label style={lbl}>Nome singular</label>
+              <input type="text" placeholder="caixa de bombom" value={localDonation.itemName} onChange={e=>setLocalDonation(p=>({...p,itemName:e.target.value}))} style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Nome plural</label>
+              <input type="text" placeholder="caixas de bombom" value={localDonation.itemNamePlural} onChange={e=>setLocalDonation(p=>({...p,itemNamePlural:e.target.value}))} style={inp} />
+            </div>
+          </div>
+          <div style={{ marginBottom:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <label style={lbl}>Tiers de beneficio</label>
+              <button type="button" onClick={()=>setLocalDonation(p=>({...p,tiers:[...p.tiers,{qty:p.tiers.length+1,benefit:""}]}))} style={{ background:T.accentDim, color:T.accent, border:`1px solid ${T.accent}40`, borderRadius:6, padding:"4px 12px", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>+ Tier</button>
+            </div>
+            {localDonation.tiers.map((tier,i)=>(
+              <div key={i} style={{ display:"grid", gridTemplateColumns:"80px 1fr auto", gap:8, marginBottom:8, alignItems:"center" }}>
+                <div>
+                  <label style={{...lbl, marginBottom:3}}>Qtd</label>
+                  <input type="number" min="1" value={tier.qty} onChange={e=>setLocalDonation(p=>({...p,tiers:p.tiers.map((t,j)=>j===i?{...t,qty:Number(e.target.value)}:t)}))} onKeyDown={e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown")e.preventDefault()}} style={inp} />
+                </div>
+                <div>
+                  <label style={{...lbl, marginBottom:3}}>Beneficio</label>
+                  <input type="text" placeholder="ex: 2º flash até R$150" value={tier.benefit} onChange={e=>setLocalDonation(p=>({...p,tiers:p.tiers.map((t,j)=>j===i?{...t,benefit:e.target.value}:t)}))} style={inp} />
+                </div>
+                <button type="button" onClick={()=>setLocalDonation(p=>({...p,tiers:p.tiers.filter((_,j)=>j!==i)}))} style={{ background:"#200c0c", color:T.red, border:"none", borderRadius:6, padding:"6px 10px", cursor:"pointer", fontSize:16, marginTop:16 }}>×</button>
+              </div>
+            ))}
+            {localDonation.tiers.length===0 && <div style={{ fontSize:12, color:T.textDim, padding:"8px 0" }}>Nenhum tier. Adicione ao menos um.</div>}
+          </div>
+        </>)}
+        {!localDonation.enabled && (
+          <div style={{ fontSize:12, color:T.textDim, padding:"4px 0 8px" }}>Doações desativadas — o campo não aparecerá no agendamento.</div>
+        )}
+        <button onClick={()=>onSaveDonationConfig(localDonation)} style={{ ...btnP(), width:"100%" }}>Salvar campanha de doacao</button>
+      </div>
+
+      <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:24, marginBottom:16 }}>
         <div style={{ fontSize:12, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:18 }}>Identidade Visual do Evento</div>
         <div style={{ marginBottom:16 }}>
           <label style={lbl}>Cor principal</label>
@@ -626,7 +684,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
   );
 }
 
-function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, event, isSubmitting }) {
+function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose, pixConfig, event, isSubmitting, donationConfig }) {
   if (!bookModal) return null;
   const maxDob = new Date(new Date().setFullYear(new Date().getFullYear()-18)).toISOString().split("T")[0];
   return (
@@ -667,27 +725,34 @@ function BookModal({ bookModal, bookForm, setBookForm, bookStep, onBook, onClose
               <option value="Outro">Outro</option>
             </select>
           </div>
-          <div style={{ marginBottom:18 }}>
-            <label style={lbl}>Caixas de bombom (Lacta ou Nestle)</label>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
-              {[{v:0,label:"Nenhuma",sub:""},{v:1,label:"1 caixa",sub:"2o flash ate R$150"},{v:2,label:"2 caixas",sub:"2o flash ate R$300"}].map(opt=>(
-                <button key={opt.v} type="button" onClick={()=>setBookForm(p=>({...p,caixas:opt.v}))} style={{
-                  background:bookForm.caixas===opt.v?"#1a0e00":T.surface3,
-                  border:`1px solid ${bookForm.caixas===opt.v?"#f97316":T.border2}`,
-                  borderRadius:8, padding:"10px 8px", cursor:"pointer", textAlign:"center",
-                  fontFamily:"'DM Sans',sans-serif",
-                }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:bookForm.caixas===opt.v?"#f97316":T.text }}>{opt.label}</div>
-                  {opt.sub && <div style={{ fontSize:10, color:bookForm.caixas===opt.v?"#f97316":T.textDim, marginTop:3 }}>{opt.sub}</div>}
-                </button>
-              ))}
-            </div>
-            {bookForm.caixas>0 && (
-              <div style={{ marginTop:10, background:"#1a0e00", border:"1px solid #f9731630", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#f97316" }}>
-                Trazendo {bookForm.caixas} caixa{bookForm.caixas>1?"s":""} de bombom voce ganha um 2o flash de ate R${bookForm.caixas===1?150:300}!
+          {donationConfig?.enabled && donationConfig.tiers?.length > 0 && (
+            <div style={{ marginBottom:18 }}>
+              <label style={lbl}>{donationConfig.itemNamePlural || "itens de doacao"}</label>
+              <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(donationConfig.tiers.length+1,3)},1fr)`, gap:8 }}>
+                {[{qty:0,benefit:""},...donationConfig.tiers].map(opt=>(
+                  <button key={opt.qty} type="button" onClick={()=>setBookForm(p=>({...p,caixas:opt.qty}))} style={{
+                    background:bookForm.caixas===opt.qty?T.accentDim:T.surface3,
+                    border:`1px solid ${bookForm.caixas===opt.qty?T.accent:T.border2}`,
+                    borderRadius:8, padding:"10px 8px", cursor:"pointer", textAlign:"center",
+                    fontFamily:"'DM Sans',sans-serif",
+                  }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:bookForm.caixas===opt.qty?T.accent:T.text }}>
+                      {opt.qty===0 ? "Nenhum" : `${opt.qty} ${opt.qty===1?(donationConfig.itemName||"item"):(donationConfig.itemNamePlural||"itens")}`}
+                    </div>
+                    {opt.benefit && <div style={{ fontSize:10, color:bookForm.caixas===opt.qty?T.accent:T.textDim, marginTop:3 }}>{opt.benefit}</div>}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+              {bookForm.caixas>0 && (()=>{
+                const tier = [...donationConfig.tiers].reverse().find(t=>t.qty<=bookForm.caixas);
+                return tier ? (
+                  <div style={{ marginTop:10, background:T.accentDim, border:`1px solid ${T.accent}30`, borderRadius:8, padding:"10px 14px", fontSize:12, color:T.accent }}>
+                    Trazendo {bookForm.caixas} {bookForm.caixas===1?(donationConfig.itemName||"item"):(donationConfig.itemNamePlural||"itens")}: {tier.benefit}!
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          )}
           <div style={{ marginBottom:20 }}>
             <label style={lbl}>Numero do arquivo do design</label>
             <textarea placeholder="Ex: arquivo 03, foto 07... consulte o catalogo de designs!" value={bookForm.notes} onChange={e=>setBookForm(p=>({...p,notes:e.target.value}))} style={{ ...inp, height:72, resize:"vertical" }} />
@@ -899,7 +964,7 @@ function ResumoTab({ bookings, donations, slots, event }) {
 }
 
 
-function DoacoesTab({ donations, onAddDonation, bookings }) {
+function DoacoesTab({ donations, onAddDonation, bookings, donationConfig }) {
   const totalCaixas = donations.reduce((a,d)=>a+d.caixas,0);
   const caixasClientes = donations.filter(d=>d.tipo==="cliente").reduce((a,d)=>a+d.caixas,0);
   const caixasDoacoes  = donations.filter(d=>d.tipo==="doacao").reduce((a,d)=>a+d.caixas,0);
@@ -914,8 +979,8 @@ function DoacoesTab({ donations, onAddDonation, bookings }) {
     <div style={{ maxWidth:700, margin:"0 auto", padding:"24px 16px" }}>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:22 }}>
         {[
-          { l:"Total de caixas", v:totalCaixas, clr:"#f97316", bg:"#1a0e00" },
-          { l:"De clientes",     v:caixasClientes, clr:T.green, bg:"#0d1a0d" },
+          { l:`Total de ${donationConfig?.itemNamePlural||"itens"}`, v:totalCaixas, clr:T.accent, bg:T.accentDim },
+          { l:"De clientes",     v:caixasClientes, clr:T.green, bg:T.greenDim },
           { l:"Doacoes diretas", v:caixasDoacoes, clr:"#c084fc", bg:"#150d1a" },
         ].map(s=>(
           <div key={s.l} style={{ background:s.bg, border:`1px solid ${s.clr}20`, borderRadius:12, padding:"16px" }}>
@@ -925,11 +990,11 @@ function DoacoesTab({ donations, onAddDonation, bookings }) {
         ))}
       </div>
 
-      <div style={{ background:"#1a0e00", border:"1px solid #f9731630", borderRadius:12, padding:"14px 16px", marginBottom:22, display:"flex", alignItems:"center", gap:14 }}>
-        <div style={{ fontSize:32 }}>🍫</div>
+      <div style={{ background:T.accentDim, border:`1px solid ${T.accent}30`, borderRadius:12, padding:"14px 16px", marginBottom:22, display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ fontSize:32 }}>🎁</div>
         <div>
-          <div style={{ fontSize:14, fontWeight:600, color:"#f97316" }}>{totalCaixas} caixa{totalCaixas!==1?"s":""} de bombom arrecadada{totalCaixas!==1?"s":""}</div>
-          <div style={{ fontSize:12, color:T.textMuted, marginTop:2 }}>Cada caixa vai alegrar uma crianca nesta Pascoa</div>
+          <div style={{ fontSize:14, fontWeight:600, color:T.accent }}>{totalCaixas} {totalCaixas===1?(donationConfig?.itemName||"item"):(donationConfig?.itemNamePlural||"itens")} arrecadado{totalCaixas!==1?"s":""}</div>
+          <div style={{ fontSize:12, color:T.textMuted, marginTop:2 }}>{donationConfig?.itemNamePlural||"Itens"} coletados neste evento</div>
         </div>
       </div>
 
@@ -969,7 +1034,7 @@ function DoacoesTab({ donations, onAddDonation, bookings }) {
 }
 
 
-function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave, onClose, isEdit }) {
+function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave, onClose, isEdit, donationConfig }) {
   if (!sessionModal) return null;
   const slot = slots.find(s=>s.id===sessionModal.slotId);
   return (
@@ -983,28 +1048,38 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
         </div>
       </div>
 
-      {sessionModal.caixas > 0 && (
-        <div style={{ background:"#1a0e00", border:"1px solid #f9731630", borderRadius:10, padding:"12px 16px", marginBottom:16, fontSize:12, color:"#f97316" }}>
-          Cliente prometeu trazer <strong>{sessionModal.caixas} caixa{sessionModal.caixas>1?"s":""}</strong> de bombom — beneficio: flash de ate R${sessionModal.caixas===1?150:300}
-        </div>
-      )}
+      {donationConfig?.enabled && sessionModal.caixas > 0 && (()=>{
+        const dc = donationConfig;
+        const tier = [...(dc.tiers||[])].reverse().find(t=>t.qty<=sessionModal.caixas);
+        return (
+          <div style={{ background:T.accentDim, border:`1px solid ${T.accent}30`, borderRadius:10, padding:"12px 16px", marginBottom:16, fontSize:12, color:T.accent }}>
+            Cliente prometeu trazer <strong>{sessionModal.caixas} {sessionModal.caixas===1?(dc.itemName||"item"):(dc.itemNamePlural||"itens")}</strong>
+            {tier ? ` — beneficio: ${tier.benefit}` : ""}
+          </div>
+        );
+      })()}
 
+      {donationConfig?.enabled && (
       <div style={{ background:T.surface3, borderRadius:10, padding:"14px 16px", marginBottom:18 }}>
-        <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>Caixas recebidas</div>
+        <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>{donationConfig.itemNamePlural||"itens"} recebidos</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
           <div>
-            <label style={lbl}>Quantidade de caixas</label>
+            <label style={lbl}>Quantidade de {donationConfig.itemNamePlural||"itens"}</label>
             <input type="number" min="0" placeholder="0" value={sessionForm.caixasRecebidas} onChange={e=>setSessionForm(p=>({...p,caixasRecebidas:e.target.value}))} onKeyDown={e=>{if(e.key==="ArrowUp"||e.key==="ArrowDown")e.preventDefault()}} style={{ ...inp, textAlign:"right" }} />
           </div>
-          {Number(sessionForm.caixasRecebidas)>0 && (
-            <div style={{ display:"flex", alignItems:"flex-end" }}>
-              <div style={{ background:"#1a0e00", border:"1px solid #f9731630", borderRadius:8, padding:"10px 12px", fontSize:12, color:"#f97316", width:"100%", boxSizing:"border-box" }}>
-                Beneficio: flash ate R${Number(sessionForm.caixasRecebidas)>=2?300:150}
+          {Number(sessionForm.caixasRecebidas)>0 && (()=>{
+            const tier = [...(donationConfig.tiers||[])].reverse().find(t=>t.qty<=Number(sessionForm.caixasRecebidas));
+            return tier ? (
+              <div style={{ display:"flex", alignItems:"flex-end" }}>
+                <div style={{ background:T.accentDim, border:`1px solid ${T.accent}30`, borderRadius:8, padding:"10px 12px", fontSize:12, color:T.accent, width:"100%", boxSizing:"border-box" }}>
+                  Beneficio: {tier.benefit}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
         </div>
       </div>
+      )}
 
       <div style={{ background:T.surface3, borderRadius:10, padding:"14px 16px", marginBottom:18 }}>
         <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:12 }}>Financeiro</div>
@@ -1085,6 +1160,7 @@ export default function FlashDay() {
   const [pwdErr, setPwdErr]       = useState("");
   const [pixConfig, setPixConfig] = useState(INIT_PIX);
   const [flashLink, setFlashLink] = useState("");
+  const [donationConfig, setDonationConfig] = useState(DEFAULT_DONATION_CONFIG);
   const [accentColor, setAccentColor] = useState(()=>localStorage.getItem("fd_accent_color")||"#e63946");
   const [bgColor, setBgColor] = useState(()=>localStorage.getItem("fd_bg_color")||"#080808");
   T.accent = accentColor;
@@ -1141,6 +1217,7 @@ export default function FlashDay() {
         setSettingsForm(ev);
         if (cfg.pix_key) setPixConfig({ key:cfg.pix_key, keyType:cfg.pix_key_type||"cpf", holderName:cfg.pix_holder_name||"", bank:cfg.pix_bank||"" });
         if (cfg.flash_link) setFlashLink(cfg.flash_link);
+        if (cfg.donation_config) setDonationConfig(cfg.donation_config);
         if (cfg.accent_color) { setAccentColor(cfg.accent_color); localStorage.setItem("fd_accent_color", cfg.accent_color); }
         if (cfg.bg_color) { setBgColor(cfg.bg_color); localStorage.setItem("fd_bg_color", cfg.bg_color); document.body.style.background = cfg.bg_color; document.body.style.color = isLightColor(cfg.bg_color) ? "#111111" : "#f0f0f0"; }
         if (cfg.admin_password) {
@@ -1355,7 +1432,7 @@ export default function FlashDay() {
       "- Chegar com 10 min de antecedencia",
       "- Estar bem alimentado(a)",
       "- Usar roupa que facilite o acesso ao local da tatuagem",
-      booking.caixas>0 ? "- Trazer " + booking.caixas + " caixa(s) de bombom (Lacta ou Nestle) para o desconto!" : "",
+      booking.caixas>0 && donationConfig?.enabled ? "- Trazer " + booking.caixas + " " + (booking.caixas===1?(donationConfig.itemName||"item"):(donationConfig.itemNamePlural||"itens")) + " para o beneficio!" : "",
       "",
       "Te esperamos! Em caso de duvidas, estamos a disposicao.",
     ].filter(Boolean);
@@ -1498,6 +1575,16 @@ export default function FlashDay() {
     }
     setFlashLink(link); showToast("Link dos designs salvo!");
   };
+  const handleSaveDonationConfig = async (cfg)=>{
+    setDonationConfig(cfg);
+    try {
+      const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
+      if (cfgRows && cfgRows.length > 0) {
+        await supabase.from("event_config").update({ donation_config:cfg }).eq("id", cfgRows[0].id);
+      }
+    } catch(e) {}
+    showToast("Campanha de doacao salva!");
+  };
   const handleSaveColors = async (accent, bg)=>{
     localStorage.setItem("fd_accent_color", accent);
     localStorage.setItem("fd_bg_color", bg);
@@ -1557,15 +1644,15 @@ export default function FlashDay() {
             </div>
             <button onClick={()=>{setAdminAuth(false);setView("agenda");}} style={{ background:"transparent", border:"none", color:T.textDim, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:"0 4px", flexShrink:0 }}>Sair</button>
           </div>
-          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} />}
-          {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} />}
+          {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} donationConfig={donationConfig} />}
+          {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} donationConfig={donationConfig} />}
           {adminTab==="resumo"   && <ResumoTab bookings={bookings} donations={donations} slots={slots} event={event} />}
           {adminTab==="slots"    && <SlotsTab slots={slots} setSlots={setSlots} slotStats={slotStats} event={event} getStatus={getStatus} />}
-          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} />}
+          {adminTab==="settings" && <SettingsTab settingsForm={settingsForm} setSettingsForm={setSettingsForm} pwdForm={pwdForm} setPwdForm={setPwdForm} pwdErr={pwdErr} setPwdErr={setPwdErr} onSaveEvent={handleSaveEvent} onSavePwd={handleSavePwd} pixConfig={pixConfig} onSavePix={handleSavePix} flashLink={flashLink} onSaveFlashLink={handleSaveFlashLink} savedTemplate={savedTemplate} onSaveTemplate={handleSaveTemplate} onLoadTemplate={handleLoadTemplate} accentColor={accentColor} bgColor={bgColor} onSaveColors={handleSaveColors} donationConfig={donationConfig} onSaveDonationConfig={handleSaveDonationConfig} />}
         </div>
       )}
 
-      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} event={event} isSubmitting={isSubmitting} />
+      <BookModal bookModal={bookModal} bookForm={bookForm} setBookForm={setBookForm} bookStep={bookStep} onBook={handleBook} onClose={closeBookModal} pixConfig={pixConfig} event={event} isSubmitting={isSubmitting} donationConfig={donationConfig} />
       <EditModal editModal={editModal} setEditModal={setEditModal} slots={slots} onSave={handleSaveEdit} onRequestCancel={()=>setConfirmId(editModal.id)} />
 
       {donationModal && (
@@ -1592,7 +1679,7 @@ export default function FlashDay() {
           </div>
         </Overlay>
       )}
-      <SessionModal sessionModal={sessionModal} sessionForm={sessionForm} setSessionForm={setSessionForm} slots={slots} onSave={handleSaveSession} onClose={()=>setSessionModal(null)} isEdit={isEditSession} />
+      <SessionModal sessionModal={sessionModal} sessionForm={sessionForm} setSessionForm={setSessionForm} slots={slots} onSave={handleSaveSession} onClose={()=>setSessionModal(null)} isEdit={isEditSession} donationConfig={donationConfig} />
 
       {confirmId && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.92)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
