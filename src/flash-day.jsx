@@ -1646,7 +1646,9 @@ export default function FlashDay() {
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"'DM Sans',sans-serif", color:T.text }}>
       <header style={{ position:"sticky", top:0, zIndex:50, background:T.bg, borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 18px", height:54 }}>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:"0.12em", lineHeight:1 }}>
-          <span style={{ color:T.accent }}>INK</span><span style={{ color:"#cccccc" }}> STATION</span>
+          {(studioName||"Ink Station").split(" ").map((word,i)=>(
+            <span key={i} style={{ color:i===0?T.accent:"#cccccc" }}>{i>0?" ":""}{word}</span>
+          ))}
         </div>
         <div style={{ display:"flex", gap:4 }}>
           {[{v:"agenda",l:"Agenda"},{v:"admin",l:"Admin"}].map(t=>(
