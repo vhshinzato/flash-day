@@ -161,6 +161,25 @@ function Overlay({ children, onClose }) {
   );
 }
 
+const EyeIcon = ({open}) => open
+  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>;
+
+function PwdInput({ value, onChange, onKeyDown, placeholder, autoFocus, borderColor, style }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position:"relative" }}>
+      <input type={show?"text":"password"} placeholder={placeholder} value={value} autoFocus={autoFocus}
+        onChange={onChange} onKeyDown={onKeyDown}
+        style={{ ...inp, paddingRight:40, ...(borderColor?{borderColor}:{}), ...style }} />
+      <button type="button" onClick={()=>setShow(s=>!s)}
+        style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:T.textMuted, padding:0, display:"flex", alignItems:"center" }}>
+        <EyeIcon open={show} />
+      </button>
+    </div>
+  );
+}
+
 function LoginScreen({ loginPwd, setLoginPwd, loginErr, setLoginErr, onLogin, studioName }) {
   return (
     <div style={{ minHeight:"80vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
@@ -171,10 +190,10 @@ function LoginScreen({ loginPwd, setLoginPwd, loginErr, setLoginErr, onLogin, st
         </div>
         <div style={{ marginBottom:14 }}>
           <label style={lbl}>Senha</label>
-          <input type="password" placeholder="Digite a senha..." value={loginPwd} autoFocus
+          <PwdInput value={loginPwd} autoFocus placeholder="Digite a senha..."
             onChange={e=>{ setLoginPwd(e.target.value); setLoginErr(false); }}
             onKeyDown={e=>e.key==="Enter"&&onLogin()}
-            style={{ ...inp, borderColor:loginErr?T.red:T.border2 }} />
+            borderColor={loginErr?T.red:T.border2} />
           {loginErr && <div style={{ fontSize:12, color:T.red, marginTop:6 }}>Senha incorreta. Tente novamente.</div>}
         </div>
         <button onClick={onLogin} style={{ ...btnP(), width:"100%", marginTop:4 }}>Entrar</button>
@@ -684,7 +703,7 @@ function SettingsTab({ settingsForm, setSettingsForm, pwdForm, setPwdForm, pwdEr
         {[{k:"current",label:"Senha atual",ph:"Digite a senha atual"},{k:"newPwd",label:"Nova senha",ph:"Minimo 6 caracteres"},{k:"confirm",label:"Confirmar nova senha",ph:"Repita a nova senha"}].map(f=>(
           <div key={f.k} style={{ marginBottom:12 }}>
             <label style={lbl}>{f.label}</label>
-            <input type="password" placeholder={f.ph} value={pwdForm[f.k]} onChange={e=>{setPwdForm(p=>({...p,[f.k]:e.target.value}));setPwdErr("");}} style={inp} />
+            <PwdInput value={pwdForm[f.k]} placeholder={f.ph} onChange={e=>{setPwdForm(p=>({...p,[f.k]:e.target.value}));setPwdErr("");}} />
           </div>
         ))}
         {pwdErr && <div style={{ fontSize:12, color:T.red, marginBottom:10 }}>{pwdErr}</div>}
@@ -1149,7 +1168,7 @@ function SessionModal({ sessionModal, sessionForm, setSessionForm, slots, onSave
 export default function FlashDay() {
   const [view, setView]           = useState("agenda");
   const [adminTab, setAdminTab]   = useState("bookings");
-  const [adminAuth, setAdminAuth] = useState(false);
+  const [adminAuth, setAdminAuth] = useState(()=>{ try { const s=localStorage.getItem("fd_admin_session"); if(s){const {expires}=JSON.parse(s);if(Date.now()<expires)return true;} } catch(e){} return false; });
   const [loginPwd, setLoginPwd]   = useState("");
   const [loginErr, setLoginErr]   = useState(false);
   const [storedPwd, setStoredPwd] = useState(()=>localStorage.getItem("fd_admin_pwd")||"inkstation2026");
@@ -1338,7 +1357,7 @@ export default function FlashDay() {
     return filtered;
   },[bookings,filterSt,search,sortBy,slots]);
 
-  const handleLogin = ()=>{ if(loginPwd===storedPwd){setAdminAuth(true);setLoginErr(false);setLoginPwd("");}else{setLoginErr(true);setLoginPwd("");} };
+  const handleLogin = ()=>{ if(loginPwd===storedPwd){localStorage.setItem("fd_admin_session",JSON.stringify({expires:Date.now()+30*24*60*60*1000}));setAdminAuth(true);setLoginErr(false);setLoginPwd("");}else{setLoginErr(true);setLoginPwd("");} };
   const handleChangePwd = async newPwd=>{
     localStorage.setItem("fd_admin_pwd", newPwd);
     setStoredPwd(newPwd);
@@ -1788,7 +1807,7 @@ export default function FlashDay() {
                 <button key={t.id} onClick={()=>setAdminTab(t.id)} style={{ background:"none", border:"none", color:adminTab===t.id?T.accent:T.textMuted, fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:500, padding:"15px 18px", cursor:"pointer", borderBottom:`2px solid ${adminTab===t.id?T.accent:"transparent"}`, whiteSpace:"nowrap" }}>{t.label}</button>
               ))}
             </div>
-            <button onClick={()=>{setAdminAuth(false);setView("agenda");}} style={{ background:"transparent", border:"none", color:T.textDim, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:"0 4px", flexShrink:0 }}>Sair</button>
+            <button onClick={()=>{localStorage.removeItem("fd_admin_session");setAdminAuth(false);setView("agenda");}} style={{ background:"transparent", border:"none", color:T.textDim, fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", padding:"0 4px", flexShrink:0 }}>Sair</button>
           </div>
           {adminTab==="bookings" && <BookingsTab gStats={gStats} filteredBookings={filteredBookings} slots={slots} search={search} setSearch={setSearch} filterSt={filterSt} setFilterSt={setFilterSt} sortBy={sortBy} setSortBy={setSortBy} onEdit={b=>setEditModal({...b})} onConfirm={handleConfirmSinal} onConcluir={handleOpenSession} onReminder={handleSendReminder} onDelete={handleDeleteBooking} donationConfig={donationConfig} />}
           {adminTab==="doacoes"  && <DoacoesTab donations={donations} onAddDonation={()=>setDonationModal(true)} bookings={bookings} donationConfig={donationConfig} />}
