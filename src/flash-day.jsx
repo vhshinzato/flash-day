@@ -1626,37 +1626,35 @@ export default function FlashDay() {
 
   const handleExportCSV = () => {
     const { sorted, confirmed, done, totalSinais, totalSessoes, totalCaixas, itemPlural } = buildExportData();
-    const esc = v => { const s=String(v??""); return (s.includes(",")||s.includes('"')||s.includes("\n"))?`"${s.replace(/"/g,'""')}"`:s; };
-    const row = cols => cols.map(esc).join(",");
-    const lines = [];
-    lines.push(row([`Flash Day - ${event.name}`]));
-    lines.push(row([`Data: ${fmtDate(event.date)}  |  Local: ${event.location}`]));
-    lines.push(row([`Exportado em: ${new Date().toLocaleString("pt-BR")}`]));
-    lines.push("");
-    lines.push(row(["=== AGENDAMENTOS E SESSÕES ==="]));
-    lines.push(row(["Nome","Telefone","Horário","Status","Parte do Corpo","Sinal (R$)","Valor Sessão (R$)","Duração (min)","Agulhas","Tintas",`${itemPlural} prometidos`,`${itemPlural} recebidos`,"Observações"]));
-    sorted.forEach(b=>{
+    const esc = v => String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const th = v => `<td style="border:1px solid #999;padding:5px 8px;background:#222;color:#fff;font-weight:bold;white-space:nowrap;">${esc(v)}</td>`;
+    const td = (v,bold) => `<td style="border:1px solid #ddd;padding:5px 8px;${bold?"font-weight:bold;background:#f5f5f5;":""}">${esc(v)}</td>`;
+    const sHdr = ["Nome","Telefone","Horário","Status","Parte do Corpo","Sinal (R$)","Valor Sessão (R$)","Duração (min)","Agulhas","Tintas",`${itemPlural} prometidos`,`${itemPlural} recebidos`,"Observações"];
+    const sRows = sorted.map(b=>{
       const slot=slots.find(s=>s.id===b.slotId);
       const sinal=(b.status==="confirmed"||b.status==="done")?SINAL_VALOR:0;
-      lines.push(row([b.name,b.phone,slot?.time||"",STATUS_LABELS[b.status]||b.status,b.bodyPart||"",sinal,b.sessao?.valorCobrado||"",b.sessao?.duracao||"",b.sessao?.agulhas||"",b.sessao?.tintas||"",b.caixas||0,b.sessao?.caixasRecebidas||0,b.notes||(b.sessao?.obs||"")]));
+      return [b.name,b.phone,slot?.time||"",STATUS_LABELS[b.status]||b.status,b.bodyPart||"",sinal,b.sessao?.valorCobrado||"",b.sessao?.duracao||"",b.sessao?.agulhas||"",b.sessao?.tintas||"",b.caixas||0,b.sessao?.caixasRecebidas||0,b.notes||(b.sessao?.obs||"")];
     });
-    lines.push("");
+    const col = sHdr.length;
+    let h = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;}table{border-collapse:collapse;margin-bottom:20px;}h2{margin:16px 0 6px;font-size:14px;}</style></head><body>`;
+    h += `<h1 style="font-size:18px;margin-bottom:4px;">Flash Day — ${esc(event.name)}</h1>`;
+    h += `<p style="color:#555;margin:0 0 20px;">Data: ${fmtDate(event.date)} &nbsp;|&nbsp; Local: ${esc(event.location)} &nbsp;|&nbsp; Exportado em: ${new Date().toLocaleString("pt-BR")}</p>`;
+    h += `<h2>AGENDAMENTOS E SESSÕES</h2><table><tr>${sHdr.map(th).join("")}</tr>`;
+    sRows.forEach(r=>{ h+=`<tr>${r.map(v=>td(v)).join("")}</tr>`; });
+    h += `</table>`;
     if (donationConfig?.enabled && donations.length>0) {
-      lines.push(row(["=== DOAÇÕES ==="]));
-      lines.push(row(["Tipo","Nome","Quantidade","Observações","Data"]));
-      donations.forEach(d=>lines.push(row([d.tipo==="cliente"?"Cliente":"Doação Direta",d.nome,d.caixas,d.obs||"",d.data?new Date(d.data).toLocaleString("pt-BR"):""])));
-      lines.push("");
+      const dHdr=["Tipo","Nome","Quantidade","Observações","Data"];
+      h+=`<h2>DOAÇÕES</h2><table><tr>${dHdr.map(th).join("")}</tr>`;
+      donations.forEach(d=>{ h+=`<tr>${[d.tipo==="cliente"?"Cliente":"Doação Direta",d.nome,d.caixas,d.obs||"",d.data?new Date(d.data).toLocaleString("pt-BR"):""].map(v=>td(v)).join("")}</tr>`; });
+      h+=`</table>`;
     }
-    lines.push(row(["=== RESUMO FINANCEIRO ==="]));
-    lines.push(row(["Sinais arrecadados (R$)",totalSinais]));
-    lines.push(row(["Faturado em sessões (R$)",totalSessoes]));
-    lines.push(row(["Total geral (R$)",totalSinais+totalSessoes]));
-    if (donationConfig?.enabled) lines.push(row([`Total de ${itemPlural}`,totalCaixas]));
-    lines.push(row(["Sessões realizadas",done.length]));
-    lines.push(row(["Agendamentos confirmados",confirmed.length]));
-    const blob = new Blob(["\uFEFF"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
-    const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download=`flashday-${event.name.replace(/\s+/g,"-")}-${event.date}.csv`;
+    const sumRows=[["Sinais arrecadados",`R$ ${totalSinais.toFixed(2)}`],["Faturado em sessões",`R$ ${totalSessoes.toFixed(2)}`],["Total geral",`R$ ${(totalSinais+totalSessoes).toFixed(2)}`],...(donationConfig?.enabled?[[`Total de ${itemPlural}`,totalCaixas]]:[]),["Sessões realizadas",done.length],["Agendamentos confirmados",confirmed.length]];
+    h+=`<h2>RESUMO FINANCEIRO</h2><table>`;
+    sumRows.forEach(([k,v])=>{ h+=`<tr>${td(k,true)}${td(v)}</tr>`; });
+    h+=`</table></body></html>`;
+    const blob=new Blob(["\uFEFF"+h],{type:"application/vnd.ms-excel;charset=utf-8"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=`flashday-${event.name.replace(/\s+/g,"-")}-${event.date}.xls`;
     a.click(); URL.revokeObjectURL(a.href);
   };
 
