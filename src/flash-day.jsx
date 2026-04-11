@@ -1620,7 +1620,9 @@ export default function FlashDay() {
     try {
       const { data:cfgRows } = await supabase.from("event_config").select("id").limit(1);
       if (cfgRows && cfgRows.length > 0) {
-        await supabase.from("event_config").update({ accent_color:accent, bg_color:bg }).eq("id", cfgRows[0].id);
+        const id = cfgRows[0].id;
+        await supabase.from("event_config").update({ accent_color:accent }).eq("id", id);
+        await supabase.from("event_config").update({ bg_color:bg }).eq("id", id).then(()=>{}).catch(()=>{});
       }
     } catch(e) {}
     showToast("Cores do evento salvas!");
